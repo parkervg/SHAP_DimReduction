@@ -2,6 +2,7 @@ from sklearn.decomposition import PCA
 import numpy as np
 from tools.Blogger import Blogger
 from all_wordsim import check_wordsim
+import io
 EPSILON = 1e-6
 RAND_STATE = 324
 logger = Blogger()
@@ -29,12 +30,11 @@ class WordEmbeddings:
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         self.ordered_vocab = []
         self.embeds = []
-        with open(self.vector_file, 'r', encoding='utf-8') as f:
+        with io.open(self.vector_file, 'r', encoding='utf-8') as f:
             for line in f:
-                values = line.split()
-                word = values[0]
+                word, vec = line.split(' ',1)
                 self.ordered_vocab.append(word)
-                self.embeds.append(np.asarray(values[1:], dtype='float32'))
+                self.embeds.append(np.fromstring(vec, sep=' '))
                 if self.normalize_on_load:
                     self.embeds[-1] /= math.sqrt((self.embeds[-1]**2).sum() + EPSILON)
         self.original_dim = len(self.embeds[0])
@@ -64,11 +64,13 @@ class WordEmbeddings:
         self.embeds = self.embeds - np.mean(self.embeds)
 
     def save_vectors(self, output_file):
+        vector_size = self.embeds.shape[1]
+        assert (len(self.ordered_vocab), vector_size)) == self.embeds.shape
         with open(output_file, "w", encoding="utf-8") as out:
             for ix, word in enumerate(self.ordered_vocab):
-                out.write("%s\t" % word)
+                out.write("%s " % word)
                 for t in self.embeds[ix]:
-                    out.write("%f\t" % t)
+                    out.write("%f " % t)
                 out.write("\n")
 
 
@@ -88,7 +90,22 @@ WE.pca_fit_transform(output_dims=150)
 WE.subract_mean()
 WE.pca_fit()
 WE.remove_top_components(k=7)
-WE.save_vectors(output_file="embeds/glove_algo2.txt")
+WE.save_vectors(output_file="embeds/glove_algo150.txt")
 
 check_wordsim("embeds/glove_algo.txt", "data/word-sim/")
 check_wordsim("embeds/glove_algo2.txt", "data/word-sim/")
+
+
+output_file = "glove_algo.txt"
+vector_size = WE.embeds.shape[1]
+assert (len(WE.ordered_vocab), vector_size) == WE.embeds.shape
+with open(output_file, "w", encoding="utf-8") as out:
+    for ix, word in enumerate(WE.ordered_vocab):
+        out.write("%s " % word)
+        for t in WE.embeds[ix]:
+            out.write("%f " % t)
+        out.write("\n")
+
+
+WE = WordEmbeddings(vector_file="embeds/glove_algo.txt")
+[WE.embeds[i].shape for i in range(len(WE.embeds)) if WE.embeds[i].shape != 150]

@@ -5,13 +5,14 @@ https://github.com/facebookresearch/SentEval/blob/master/examples/bow.py
 import sys
 import io
 import numpy as np
+import argparse
 import logging
+from tools.Blogger import Blogger
+logger = Blogger()
 
 # Set PATHs
 PATH_TO_SENTEVAL = './SentEval'
 PATH_TO_DATA = './SentEval/data'
-# PATH_TO_VEC = 'glove/glove.840B.300d.txt'
-PATH_TO_VEC = 'embeds/glove.6B.300d.txt'
 
 # import SentEval
 sys.path.insert(0, PATH_TO_SENTEVAL)
@@ -62,7 +63,7 @@ def get_wordvec(path_to_vec, word2id):
 def prepare(params, samples):
     _, params.word2id = create_dictionary(samples)
     params.word_vec = get_wordvec(PATH_TO_VEC, params.word2id)
-    params.wvec_dim = 300
+    params.wvec_dim = params.word_vec["the"].shape[0]
     return
 
 def batcher(params, batch):
@@ -83,31 +84,37 @@ def batcher(params, batch):
     embeddings = np.vstack(embeddings)
     return embeddings
 
-
-# Set params for SentEval
-params_senteval = {'task_path': PATH_TO_DATA, 'usepytorch': False, 'kfold': 5}
-params_senteval['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128,
-                                 'tenacity': 3, 'epoch_size': 2}
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 # Set up logger
 logging.basicConfig(format='%(asctime)s : %(message)s', level=logging.DEBUG)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="SentEval runner"
+    )
+    parser.add_argument("-tests", nargs="+", help="The tests to run")
+    parser.add_argument("-path", type=str, help="The path to the vectors to load")
+    parser.add_argument("-pytorch", type=str2bool, default=False, help="Whether to use pytorch as classifier")
+    parser.add_argument("-batch_size", type=int, default=128, help="Batch size for classification")
+    parser.add_argument("-epoch_size", type=int, default=2, help="Epoch size")
+    values = parser.parse_args()
+    logger.green(values)
+    PATH_TO_VEC = values.path
+    # Set params for SentEval
+    params_senteval = {'task_path': PATH_TO_DATA, 'usepytorch': values.pytorch, 'kfold': 5}
+    params_senteval['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': values.batch_size,
+                                     'tenacity': 3, 'epoch_size': values.epoch_size}
     se = senteval.engine.SE(params_senteval, batcher, prepare)
-    # transfer_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16',
-    #                   'MR', 'CR', 'MPQA', 'SUBJ', 'SST2', 'SST5', 'TREC', 'MRPC',
-    #                   'SICKEntailment', 'SICKRelatedness', 'STSBenchmark',
-    #                   'Length', 'WordContent', 'Depth', 'TopConstituents',
-    #                   'BigramShift', 'Tense', 'SubjNumber', 'ObjNumber',
-    #                   'OddManOut', 'CoordinationInversion']
-    transfer_tasks = ['MR', 'CR', 'MPQA', 'SUBJ', 'SST2', 'SST5', 'TREC', 'MRPC']
-    results = se.eval(transfer_tasks)
-    print(results)
-
-
-    result = se.eval('TREC')
-
-    clf = result["classifier"]
-    clf.predict([result["train_embeddings"][123]])
-    result["train_labels"][123]
-    
+    result = se.eval(values.tests)
+    for k in result:
+        logger.status_update("{}: {}".format(k, result[k]["acc"]))
+        print()
