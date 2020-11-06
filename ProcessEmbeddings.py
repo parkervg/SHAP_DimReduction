@@ -65,7 +65,7 @@ class WordEmbeddings:
 
     def save_vectors(self, output_file):
         vector_size = self.embeds.shape[1]
-        assert (len(self.ordered_vocab), vector_size)) == self.embeds.shape
+        assert (len(self.ordered_vocab), vector_size) == self.embeds.shape
         with open(output_file, "w", encoding="utf-8") as out:
             for ix, word in enumerate(self.ordered_vocab):
                 out.write("%s " % word)
@@ -75,37 +75,19 @@ class WordEmbeddings:
 
 
 
+if __name__ == "__main__":
+    WE = WordEmbeddings(vector_file="embeds/glove.6B.300d.txt")
+    # PPE
+    WE.subract_mean()
+    WE.pca_fit()
+    WE.remove_top_components(k=7)
 
-WE = WordEmbeddings(vector_file="embeds/glove.6B.300d.txt")
-# PPE
-WE.subract_mean()
-WE.pca_fit()
-WE.remove_top_components(k=7)
+    # PCA dim reduction
+    WE.subract_mean()
+    WE.pca_fit_transform(output_dims=150)
 
-# PCA dim reduction
-WE.subract_mean()
-WE.pca_fit_transform(output_dims=150)
-
-# PPE
-WE.subract_mean()
-WE.pca_fit()
-WE.remove_top_components(k=7)
-WE.save_vectors(output_file="embeds/glove_algo150.txt")
-
-check_wordsim("embeds/glove_algo.txt", "data/word-sim/")
-check_wordsim("embeds/glove_algo2.txt", "data/word-sim/")
-
-
-output_file = "glove_algo.txt"
-vector_size = WE.embeds.shape[1]
-assert (len(WE.ordered_vocab), vector_size) == WE.embeds.shape
-with open(output_file, "w", encoding="utf-8") as out:
-    for ix, word in enumerate(WE.ordered_vocab):
-        out.write("%s " % word)
-        for t in WE.embeds[ix]:
-            out.write("%f " % t)
-        out.write("\n")
-
-
-WE = WordEmbeddings(vector_file="embeds/glove_algo.txt")
-[WE.embeds[i].shape for i in range(len(WE.embeds)) if WE.embeds[i].shape != 150]
+    # PPE
+    WE.subract_mean()
+    WE.pca_fit()
+    WE.remove_top_components(k=7)
+    WE.save_vectors(output_file="embeds/glove_algo150.txt")

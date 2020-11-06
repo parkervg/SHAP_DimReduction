@@ -4,6 +4,3 @@
 [submodule "SentEval"]
 	path = SentEval
 	url = https://github.com/parkervg/SentEval
-[submodule "tf_ConvWTA"]
-	path = tf_ConvWTA
-	url = https://github.com/parkervg/tf_ConvWTA
