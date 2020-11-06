@@ -4,7 +4,6 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 from tensorflow_fcwta.models import FullyConnectedWTA
 
-
 def sparsify_embeddings(vector_file, target_dims, sparsity):
     tf.app.flags.DEFINE_float('learning_rate', 1e-2,
                               'learning rate to use during training')
@@ -18,6 +17,8 @@ def sparsify_embeddings(vector_file, target_dims, sparsity):
                                 'size of each ReLU (encode) layer')
     tf.app.flags.DEFINE_integer('num_layers', 1,
                                 'number of ReLU (encode) layers')
+    tf.app.flags.DEFINE_integer('steps_per_checkpoint', 8000,
+                                'minibatches to train before saving checkpoint')
     tf.app.flags.DEFINE_integer('train_steps', 8000,
                                 'total minibatches to train')
     tf.app.flags.DEFINE_integer('steps_per_display', 500,
@@ -26,6 +27,8 @@ def sparsify_embeddings(vector_file, target_dims, sparsity):
                                 'fix random seed to guarantee reproducibility')
     tf.app.flags.DEFINE_boolean('show_plots', False,
                                 'show visualizations')
+    tf.app.flags.DEFINE_string('train_dir', 'tensorflow_fcwta',
+                                'where to store checkpoints to (or load checkpoints from)')
     tf.app.flags.DEFINE_string('f', '', 'kernel')
 
     FLAGS = tf.app.flags.FLAGS
@@ -39,7 +42,7 @@ def sparsify_embeddings(vector_file, target_dims, sparsity):
 
     WE = WordEmbeddings(vector_file=vector_file)
 
-    X_train = WE.embeds
+    X_train = WE.embeds[:100, :]
 
     # Batches word embeds into groups of 256
     batch = tf.train.shuffle_batch(
@@ -51,6 +54,7 @@ def sparsify_embeddings(vector_file, target_dims, sparsity):
             enqueue_many=True)
 
     with tf.Session() as sess:
+        ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
         sess.run(tf.global_variables_initializer())
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord, sess=sess)
@@ -59,6 +63,8 @@ def sparsify_embeddings(vector_file, target_dims, sparsity):
             _, loss = fcwta.step(sess, curr_batch)
             if step % FLAGS.steps_per_display == 0:
                 print('step={}, loss={:.3f}'.format(step, loss))
-        # Featurize data
-        X_train_f = fcwta.encode(sess, X_train)
-    return X_train_f
+        checkpoint_path = FLAGS.train_dir + "/ckpt"
+        fcwta.saver.save(sess,
+                         checkpoint_path,
+                         global_step=fcwta.global_step)
+        print("Wrote to checkpoint")

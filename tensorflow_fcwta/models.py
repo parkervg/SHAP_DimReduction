@@ -194,6 +194,7 @@ class FullyConnectedWTA:
         return session.run(self._decode_layer(fake_input, reuse=True))
 
 
+
 def _interleave(xs, ys):
     """Interleaves the two given lists (assumed to be of equal length)."""
     return [val for pair in zip(xs, ys) for val in pair]

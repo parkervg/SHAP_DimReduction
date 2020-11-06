@@ -59,6 +59,8 @@ def get_wordvec(path_to_vec, word2id):
         {1} words'.format(len(word_vec), len(word2id)))
     return word_vec
 
+
+
 # SentEval prepare and batcher
 def prepare(params, samples):
     _, params.word2id = create_dictionary(samples)
