@@ -214,7 +214,7 @@ class WordEmbeddings:
         self.summary["original_dim"] = self.original_dim
         self.summary["final_dim"] = self.embeds.shape[1]
         self.summary["process"] = self.function_log
-        self.vector_file["original_vectors"] = os.path.basename(self.vector_file)
+        self.summary["original_vectors"] = os.path.basename(self.vector_file)
         summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
         self.save_summary_json(summary_file_name)
 
