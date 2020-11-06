@@ -196,10 +196,11 @@ class WordEmbeddings:
                 else:
                     not_found += 1
                 total_size += 1
-            rho = spearmans_rho(assign_ranks(manual_dict), assign_ranks(auto_dict))
+            rho = round(spearmans_rho(assign_ranks(manual_dict), assign_ranks(auto_dict)) * 100, 2)
             self.summary["similarity_scores"][filename] = rho
             table.append([filename, total_size, not_found, rho])
         print(tabulate(table, headers=["Dataset", "Num Pairs", "Not Found", "Rho"]))
+
 
     def evaluate(self, senteval_tasks, save_summary=False, summary_file_name=None, senteval_config={}):
         """
