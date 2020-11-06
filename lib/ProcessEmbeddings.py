@@ -25,6 +25,9 @@ WORD_SIM_DIR = './data/word-sim'
 sys.path.insert(0, PATH_TO_SENTEVAL)
 import senteval
 
+CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "STS", "SST", "TREC", "MRPC"]
+SIMILARITY_TASKS = ["SICKRelatedness", 'STS12', 'STS13', 'STS14', 'STS15', 'STS16']
+
 """
 TODO:
     - Provide 'inference' argument on se.eval class to not return stats, only model and data
@@ -201,17 +204,17 @@ class WordEmbeddings:
             table.append([filename, total_size, not_found, rho])
         print(tabulate(table, headers=["Dataset", "Num Pairs", "Not Found", "Rho"]))
 
-
     def evaluate(self, senteval_tasks, save_summary=False, summary_file_name=None, senteval_config={}):
         """
         Runs SentEval classification tasks, and similarity tasks from Half-Size.
         """
         self.summary = {}
         self.SentEval(senteval_tasks, save_summary=save_summary, summary_file_name=summary_file_name, senteval_config=senteval_config)
-        self.similarity_tasks(save_summary=save_summary, summary_file_name=summary_file_name)
+        #self.similarity_tasks(save_summary=save_summary, summary_file_name=summary_file_name)
         self.summary["original_dim"] = self.original_dim
         self.summary["final_dim"] = self.embeds.shape[1]
         self.summary["process"] = self.function_log
+        self.vector_file["original_vectors"] = os.path.basename(self.vector_file)
         summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
         self.save_summary_json(summary_file_name)
 
@@ -227,11 +230,17 @@ class WordEmbeddings:
                                          'epoch_size': senteval_config.get("epoch_size") if senteval_config.get("epoch_size") else 2,}
         se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
         self.summary["classification_scores"] = {}
+        self.summary["similarity_scores"] = {}
         results = se.eval(tasks)
         for k in results:
-            self.summary["classification_scores"][k] = results[k]["acc"]
-            logger.status_update("{}: {}".format(k, results[k]["acc"]))
-            print()
+            if k in CLASSIFICATION_TASKS:
+                self.summary["classification_scores"][k] = results[k]["acc"]
+                logger.status_update("{}: {}".format(k, results[k]["acc"]))
+                print()
+            elif k in SIMILARITY_TASKS:
+                self.summary["similarity_scores"][k] = results[k]
+                logger.status_update("{}: {}".format(k, results[k]["all"]["spearman"]["mean"]))
+                print()
 
     def model_inference(self, task):
         """
