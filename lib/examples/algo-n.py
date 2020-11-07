@@ -1,8 +1,11 @@
 from lib.ProcessEmbeddings import WordEmbeddings
 from tools.Blogger import Blogger
 import os
+
 logger = Blogger()
-CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "STS", "SST", "TREC", "SICK", "MRPC"]
+CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST5", "TREC", "MRPC"]
+SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS16"]
+ALL_TASKS = CLASSIFICATION_TASKS + SIMILARITY_TASKS
 
 if __name__ == "__main__":
     if not os.path.exists("embeds/glove_algo150.txt"):
@@ -22,8 +25,13 @@ if __name__ == "__main__":
         WE.remove_top_components(k=7)
         WE.save_vectors("embeds/glove_algo150.txt")
         logger.status_update("Running SentEval tasks...")
-        WE.SentEval(tasks=["MPQA"], save_summary=True, summary_file_name="algo-n.json")
+
+        WE.evaluate(
+            senteval_tasks=ALL_TASKS, save_summary=True, summary_file_name="algo-n.json"
+        )
     else:
         WE = WordEmbeddings(vector_file="embeds/glove_algo150.txt")
         logger.status_update("Running SentEval tasks...")
-        WE.SentEval(tasks=["MPQA"], save_summary=False)
+        WE.evaluate(
+            senteval_tasks=ALL_TASKS, save_summary=True, summary_file_name="algo-n.json"
+        )
