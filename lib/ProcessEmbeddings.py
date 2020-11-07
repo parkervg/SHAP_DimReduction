@@ -167,7 +167,7 @@ class WordEmbeddings:
         self.embeds = np.take(self.embeds, indices=dims, axis=1)
 
     ############################################################################
-    ####################### EVALUATION FUNCTIONS #####################################
+    ####################### EVALUATION FUNCTIONS ###############################
     ############################################################################
 
     @staticmethod
@@ -401,55 +401,3 @@ class WordEmbeddings:
                     out.write("%f " % t)
                 out.write("\n")
         logger.status_update("Vectors saved to {}".format(output_file))
-
-
-# # Create dictionary
-# def create_dictionary(sentences, threshold=0):
-#     words = {}
-#     for s in sentences:
-#         for word in s:
-#             words[word] = words.get(word, 0) + 1
-#
-#     if threshold > 0:
-#         newwords = {}
-#         for word in words:
-#             if words[word] >= threshold:
-#                 newwords[word] = words[word]
-#         words = newwords
-#     words['<s>'] = 1e9 + 4
-#     words['</s>'] = 1e9 + 3
-#     words['<p>'] = 1e9 + 2
-#
-#     sorted_words = sorted(words.items(), key=lambda x: -x[1])  # inverse sort
-#     id2word = []
-#     word2id = {}
-#     for i, (w, _) in enumerate(sorted_words):
-#         id2word.append(w)
-#         word2id[w] = i
-#
-#     return id2word, word2id
-#
-# # SentEval prepare and batcher
-# def prepare(params, samples):
-#     _, params.word2id = create_dictionary(samples)
-#     params.word_vec = get_wordvec(PATH_TO_VEC, params.word2id)
-#     params.wvec_dim = params.word_vec["the"].shape[0]
-#     return
-#
-# def batcher(params, batch):
-#     batch = [sent if sent != [] else ['.'] for sent in batch]
-#     embeddings = []
-#
-#     for sent in batch:
-#         sentvec = []
-#         for word in sent:
-#             if word in params.word_vec:
-#                 sentvec.append(params.word_vec[word])
-#         if not sentvec:
-#             vec = np.zeros(params.wvec_dim)
-#             sentvec.append(vec)
-#         sentvec = np.mean(sentvec, 0)
-#         embeddings.append(sentvec)
-#
-#     embeddings = np.vstack(embeddings)
-#     return embeddings
