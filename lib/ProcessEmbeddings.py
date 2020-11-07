@@ -3,6 +3,7 @@ import numpy as np
 from tools.Blogger import Blogger
 import tensorflow.compat.v1 as tf
 from tensorflow_fcwta.models import FullyConnectedWTA
+from gensim.models.keyedvectors import KeyedVectors
 import json
 import io
 import imp
@@ -42,25 +43,35 @@ class WordEmbeddings:
         #   "Vectors are normalized to unit length before they are used for similarity calculation,
         #    making cosine similarity and dot-product equivalent.""
         self.normalize_on_load = normalize_on_load
-        self.is_word2vec = is_word2vec
         self.prev_components = np.empty((0, 0))
         self.function_log = []
-        self.load_vectors()
+        if is_word2vec:
+            self.load_word2vec_vectors()
+        else:
+            self.load_vectors()
+
+    def load_word2vec_vectors(self):
+        logger.status_update("Loading vectors at {}...".format(self.vector_file))
+        model = KeyedVectors.load_word2vec_format('embeds/GoogleNews-vectors-negative300.bin', binary=True)
+        self.emebds = model.vectors
+        self.ordered_vocab = model.vocab.keys()
+        #self.embeds = np.asarray(self.embeds) # Already a numpy array
+        self.original_dim = self.embeds.shape[1]
+
 
     def load_vectors(self):
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         self.ordered_vocab = []
         self.embeds = []
         with io.open(self.vector_file, "r", encoding="utf-8") as f:
-            if self.is_word2vec: next(f)
             for line in f:
                 word, vec = line.split(" ", 1)
                 self.ordered_vocab.append(word)
                 self.embeds.append(np.fromstring(vec, sep=" "))
                 if self.normalize_on_load:
                     self.embeds[-1] /= math.sqrt((self.embeds[-1] ** 2).sum() + EPSILON)
-        self.original_dim = len(self.embeds[0])
         self.embeds = np.asarray(self.embeds)
+        self.original_dim = self.embeds.shape[1]
 
     def pca_fit_transform(self, output_dims):
         self.function_log.append("pca_fit_transform")
