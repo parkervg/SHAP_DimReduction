@@ -32,12 +32,6 @@ import senteval
 CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "STS", "SST", "TREC", "MRPC"]
 SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS16"]
 
-"""
-TODO:
-    - Provide 'inference' argument on se.eval class to not return stats, only model and data
-"""
-
-
 class WordEmbeddings:
     def __init__(self, vector_file, is_word2vec=False, normalize_on_load=False):
         self.vector_file = vector_file if vector_file else "./embeds/glove.6B.300d.txt"
@@ -128,13 +122,13 @@ class WordEmbeddings:
         tf.reset_default_graph()
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
 
-    def shap_dim_reduction(self, task, k=10):
+    def shap_dim_reduction(self, task, k):
         acc, clf, X, Y = self.model_inference(task)
         logger.status_update(f"Original accuracy on task {task}: {acc}")
         if len(clf.classes_) == 2:
             dims = self.top_shap_dimensions_binary(clf, X, k=k)
         else:
-            raise ValueError("Haven't worked out multi class models yet")
+            dims = self.top_shap_dimensions_multi(clf, X, k=k)
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
 
@@ -148,7 +142,7 @@ class WordEmbeddings:
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
 
     @staticmethod
-    def top_shap_dimensions_binary(clf, X, k=10):
+    def top_shap_dimensions_binary(clf, X, k):
         if len(clf.classes_) != 2:
             raise ValueError(
                 f"Classifier is not binary, predicting on {len(clf.classes_)} classes"
@@ -159,6 +153,28 @@ class WordEmbeddings:
         # Each dimension index, sorted descending-first by sum of shap score
         sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
+
+    @staticmethod
+    def top_shap_dimensions_multi(clf, X, k):
+        if len(clf.classes_) == 2:
+            raise ValueError(
+                f"Classifier is not multiclass, predicting on {len(clf.classes_)} classes"
+            )
+        explainer = shap.Explainer(clf, X)
+        shap_values = explainer(X)
+        vals = np.sum(shap_values.values, axis=0)
+        dim_per_label = int(k / len(clf.classes_))
+        logger.log(f"Selecting {dim_per_label} dimensions per label...")
+        top_dims = {}
+        used_dims = set()
+        for label_ind in range(vals.shape[1]):
+            scores = vals[:, label_ind]
+            sorted_dimensions = np.argsort(-scores, axis=0)
+            top_dims[label_ind] = [i for i in sorted_dimensions if i not in used_dims][:dim_per_label]
+            for dim in top_dims[label_ind]:
+                used_dims.add(dim)
+        dims = [item for sublist in top_dims.values() for item in sublist]
+        return dims
 
     def take_dims(self, dims):
         """
@@ -398,6 +414,9 @@ class WordEmbeddings:
         return existing_data
 
     def save_vectors(self, output_file):
+        """
+        Saves vectors to .txt file.
+        """
         vector_size = self.embeds.shape[1]
         assert (len(self.ordered_vocab), vector_size) == self.embeds.shape
         with open(output_file, "w", encoding="utf-8") as out:
