@@ -53,7 +53,7 @@ class WordEmbeddings:
     def load_word2vec_vectors(self):
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         model = KeyedVectors.load_word2vec_format('embeds/GoogleNews-vectors-negative300.bin', binary=True)
-        self.emebds = model.vectors
+        self.embeds = model.vectors
         self.ordered_vocab = model.vocab.keys()
         #self.embeds = np.asarray(self.embeds) # Already a numpy array
         self.original_dim = self.embeds.shape[1]
