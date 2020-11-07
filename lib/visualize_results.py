@@ -7,7 +7,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def visualize_results(summary_path):
+def visualize_results(summary_path, label_bars=True):
     all_files = glob.glob("{}/*.json".format(summary_path))
     print(all_files)
     all_data = {}
@@ -38,7 +38,7 @@ def visualize_results(summary_path):
     min_val = min(values) - 10
 
     fig, ax = plt.subplots()
-    fig.set_size_inches(20, 10)
+    fig.set_size_inches(len(all_files) * 2.85, len(all_files) * 1.5)
 
     ax = sns.barplot(
         ax=ax,
@@ -50,12 +50,13 @@ def visualize_results(summary_path):
         palette="dark",
         alpha=0.6,
     )
-
-    values = range(len(ax.patches))
-    for val, p in zip(values, ax.patches):
-        height = p.get_height()
-        ax.text(p.get_x() + p.get_width() / 2.0, height + 3, height, ha="center")
+    if label_bars:
+        values = range(len(ax.patches))
+        for val, p in zip(values, ax.patches):
+            height = p.get_height()
+            ax.text(p.get_x() + p.get_width() / 2.0, height + 1, height, ha="center")
     ax.set(xlabel="Word Vector", ylabel="Score")
+    fig.suptitle("Scores Across Classification Tasks", fontsize=20)
     ax.set_ylim(min_val, max_val)
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0, fontsize=14)
     plt.show()
