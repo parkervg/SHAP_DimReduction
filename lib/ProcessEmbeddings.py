@@ -4,30 +4,33 @@ from tools.Blogger import Blogger
 import tensorflow.compat.v1 as tf
 from tensorflow_fcwta.models import FullyConnectedWTA
 from gensim.models.keyedvectors import KeyedVectors
+import shap
 import json
 import io
 import imp
 import os
 import uuid
 import sys
+import random
 import math
 from tabulate import tabulate
 from tools.ranking import *
+
 EPSILON = 1e-6
 RAND_STATE = 324
 logger = Blogger()
 
 # Set PATHs
-PATH_TO_SENTEVAL = './SentEval'
-PATH_TO_DATA = './SentEval/data'
-WORD_SIM_DIR = './data/word-sim'
+PATH_TO_SENTEVAL = "./SentEval"
+PATH_TO_DATA = "./SentEval/data"
+WORD_SIM_DIR = "./data/word-sim"
 
 # import SentEval
 sys.path.insert(0, PATH_TO_SENTEVAL)
 import senteval
 
 CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "STS", "SST", "TREC", "MRPC"]
-SIMILARITY_TASKS = ["SICKRelatedness", 'STS12', 'STS13', 'STS14', 'STS15', 'STS16']
+SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS16"]
 
 """
 TODO:
@@ -52,12 +55,13 @@ class WordEmbeddings:
 
     def load_word2vec_vectors(self):
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
-        model = KeyedVectors.load_word2vec_format('embeds/GoogleNews-vectors-negative300.bin', binary=True)
+        model = KeyedVectors.load_word2vec_format(
+            "embeds/GoogleNews-vectors-negative300.bin", binary=True
+        )
         self.embeds = model.vectors
         self.ordered_vocab = model.vocab.keys()
-        #self.embeds = np.asarray(self.embeds) # Already a numpy array
+        # self.embeds = np.asarray(self.embeds) # Already a numpy array
         self.original_dim = self.embeds.shape[1]
-
 
     def load_vectors(self):
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
@@ -123,6 +127,48 @@ class WordEmbeddings:
             self.embeds = fcwta.encode(sess, self.embeds)
         tf.reset_default_graph()
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
+
+    def shap_dim_reduction(self, task, k=10):
+        acc, clf, X, Y = self.model_inference(task)
+        logger.status_update(f"Original accuracy on task {task}: {acc}")
+        if len(clf.classes_) == 2:
+            dims = self.top_shap_dimensions_binary(clf, X, k=k)
+        else:
+            raise ValueError("Haven't worked out multi class models yet")
+        self.take_dims(dims)
+        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+
+    def rand_dim_reduction(self, k=10):
+        """
+        Used for testing purposes. Takes random selection from all of embedding dimensions
+        """
+        dims = random.sample(range(self.embeds.shape[1]), k=k)
+        logger.status_update(f"Randomly selected dimension indices {dims}")
+        self.take_dims(dims)
+        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+
+    @staticmethod
+    def top_shap_dimensions_binary(clf, X, k=10):
+        if len(clf.classes_) != 2:
+            raise ValueError(
+                f"Classifier is not binary, predicting on {len(clf.classes_)} classes"
+            )
+        explainer = shap.Explainer(clf, X)
+        shap_values = explainer(X)
+        vals = np.abs(shap_values.values).mean(0)
+        # Each dimension index, sorted descending-first by sum of shap score
+        sorted_dimensions = np.argsort(-vals, axis=0)
+        return sorted_dimensions[:k]
+
+    def take_dims(self, dims):
+        """
+        Restricts self.embeds to only those dimensions whose indices are in dims.
+        """
+        self.embeds = np.take(self.embeds, indices=dims, axis=1)
+
+    ############################################################################
+    ####################### EVALUATION FUNCTIONS #####################################
+    ############################################################################
 
     @staticmethod
     def _del_all_flags(FLAGS):
@@ -243,7 +289,7 @@ class WordEmbeddings:
         Runs SentEval classification tasks, and similarity tasks from Half-Size.
         """
         self.summary = {}
-        self.SentEval(
+        self.run_senteval(
             senteval_tasks,
             save_summary=save_summary,
             summary_file_name=summary_file_name,
@@ -254,23 +300,21 @@ class WordEmbeddings:
         self.summary["final_dim"] = self.embeds.shape[1]
         self.summary["process"] = self.function_log
         self.summary["original_vectors"] = os.path.basename(self.vector_file)
-        summary_file_name = (
-            summary_file_name if summary_file_name else str(uuid.uuid4())
-        )
+        summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
         self.save_summary_json(summary_file_name)
 
-    def SentEval(
+    def run_senteval(
         self, tasks, save_summary=False, summary_file_name=None, senteval_config={}
     ):
+        if not isinstance(tasks, list):
+            tasks = [tasks]
         # Set params for SentEval
         params_senteval = {
             "task_path": PATH_TO_DATA,
             "usepytorch": senteval_config.get("usepytorch")
             if senteval_config.get("usepytorch")
             else False,
-            "kfold": senteval_config.get("kfold")
-            if senteval_config.get("kfold")
-            else 5,
+            "kfold": senteval_config.get("kfold") if senteval_config.get("kfold") else 5,
         }
         params_senteval["classifier"] = {
             "nhid": senteval_config.get("nhid") if senteval_config.get("nhid") else 0,
