@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 def visualize_results(summary_dir: str=None, json_paths: list=None, label_bars=True):
     if summary_dir and json_paths:
         raise ValueError("Onle one of 'summary_dir', 'json_paths' can be specified.")
-    if summary_dir: all_files = glob.glob("{}/*.json".format(summary_path))
+    if summary_dir: all_files = glob.glob("{}/*.json".format(summary_dir))
     elif json_paths: all_files = json_paths
 
     print(all_files)
