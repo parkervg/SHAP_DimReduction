@@ -300,8 +300,9 @@ class WordEmbeddings:
         self.summary["final_dim"] = self.embeds.shape[1]
         self.summary["process"] = self.function_log
         self.summary["original_vectors"] = os.path.basename(self.vector_file)
-        summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
-        self.save_summary_json(summary_file_name)
+        if save_summary:
+            summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
+            self.save_summary_json(summary_file_name)
 
     def run_senteval(
         self, tasks, save_summary=False, summary_file_name=None, senteval_config={}
