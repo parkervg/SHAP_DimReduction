@@ -301,7 +301,9 @@ class WordEmbeddings:
         self.summary["process"] = self.function_log
         self.summary["original_vectors"] = os.path.basename(self.vector_file)
         if save_summary:
-            summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
+            summary_file_name = (
+                summary_file_name if summary_file_name else str(uuid.uuid4())
+            )
             self.save_summary_json(summary_file_name)
 
     def run_senteval(
@@ -368,9 +370,26 @@ class WordEmbeddings:
     def save_summary_json(self, summary_file_name):
         if not os.path.isdir("summary"):
             os.mkdir("summary")
-        with open("summary/{}".format(summary_file_name), "w") as f:
-            json.dump(self.summary, f)
+        if os.path.exists("summary/{}".format(summary_file_name)):
+            logger.yellow("Existing summary file found, appending new output")
+            with open("summary/{}".format(summary_file_name)) as f:
+                existing_data = json.load(f)
+            existing_data = self.append_to_output(existing_data, "classification_scores")
+            existing_data = self.append_to_output(existing_data, "similarity_scores")
+            with open("summary/{}".format(summary_file_name), "w") as f:
+                json.dump(existing_data, f)
+        else:
+            with open("summary/{}".format(summary_file_name), "w") as f:
+                json.dump(self.summary, f)
         logger.status_update("Summary saved to summary/{}".format(summary_file_name))
+
+    def append_to_output(self, existing_data, section):
+        for task, score in self.summary[section].items():
+            if task not in existing_data[section]:
+                existing_data[section][task] = score
+            else:
+                raise ValueError(f"Existing score already exists for task {task}")
+        return existing_data
 
     def save_vectors(self, output_file):
         vector_size = self.embeds.shape[1]
