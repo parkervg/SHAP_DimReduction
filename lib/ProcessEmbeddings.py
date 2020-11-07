@@ -282,6 +282,7 @@ class WordEmbeddings:
         self,
         senteval_tasks,
         save_summary=False,
+        overwrite=False,
         summary_file_name=None,
         senteval_config={},
     ):
@@ -304,7 +305,7 @@ class WordEmbeddings:
             summary_file_name = (
                 summary_file_name if summary_file_name else str(uuid.uuid4())
             )
-            self.save_summary_json(summary_file_name)
+            self.save_summary_json(summary_file_name, overwrite=overwrite)
 
     def run_senteval(
         self, tasks, save_summary=False, summary_file_name=None, senteval_config={}
@@ -367,15 +368,15 @@ class WordEmbeddings:
         results = se.eval(task)
         return results["acc"], results["classifier"], results["X"], results["Y"]
 
-    def save_summary_json(self, summary_file_name):
+    def save_summary_json(self, summary_file_name, overwrite):
         if not os.path.isdir("summary"):
             os.mkdir("summary")
         if os.path.exists("summary/{}".format(summary_file_name)):
             logger.yellow("Existing summary file found, appending new output")
             with open("summary/{}".format(summary_file_name)) as f:
                 existing_data = json.load(f)
-            existing_data = self.append_to_output(existing_data, "classification_scores")
-            existing_data = self.append_to_output(existing_data, "similarity_scores")
+            existing_data = self.append_to_output(existing_data, "classification_scores", overwrite=overwrite)
+            existing_data = self.append_to_output(existing_data, "similarity_scores", overwrite=overwrite)
             with open("summary/{}".format(summary_file_name), "w") as f:
                 json.dump(existing_data, f)
         else:
@@ -383,9 +384,9 @@ class WordEmbeddings:
                 json.dump(self.summary, f)
         logger.status_update("Summary saved to summary/{}".format(summary_file_name))
 
-    def append_to_output(self, existing_data, section):
+    def append_to_output(self, existing_data, section, overwrite):
         for task, score in self.summary[section].items():
-            if task not in existing_data[section]:
+            if task not in existing_data[section] or overwrite:
                 existing_data[section][task] = score
             else:
                 raise ValueError(f"Existing score already exists for task {task}")
