@@ -23,7 +23,7 @@ def visualize_results(summary_dir: str=None, json_paths: list=None, label_bars=T
     ordered_tasks = []
     classification_scores = defaultdict(list)
     for modelname, scores in all_data.items():
-        modelname = os.path.basename(modelname)
+        modelname = os.path.splitext(os.path.basename(modelname))[0]
         for ix, (title, score) in enumerate(scores["classification_scores"].items()):
             if title != "SUBJ":
                 data[modelname].append(score)
