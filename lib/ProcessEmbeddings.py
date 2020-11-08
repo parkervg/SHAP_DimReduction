@@ -186,6 +186,12 @@ class WordEmbeddings:
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
     ############################################################################
+    def get_vector_dict(self):
+        """
+        Returns traditional word_vector dict, of structure {word:vector}
+        """
+        return {k:v for k, v in zip(self.ordered_vocab, self.embeds)}
+
 
     @staticmethod
     def _del_all_flags(FLAGS):
@@ -224,7 +230,7 @@ class WordEmbeddings:
     def prepare(self, params, samples):
         _, params.word2id = self._create_dictionary(samples)
         params.word_vec = self._load_eval_vectors(params.word2id)
-        params.wvec_dim = params.word_vec["the"].shape[0]
+        params.wvec_dim = params.word_vec.shape[1]
         return
 
     def _load_eval_vectors(self, word2id):
