@@ -126,14 +126,11 @@ class WordEmbeddings:
         self.function_log.append("shap_dim_reduction")
         acc, clf, X, Y = self.model_inference(task)
         logger.status_update(f"Original accuracy on task {task}: {acc}")
-        if len(clf.classes_) == 2:
-            dims = self.top_shap_dimensions_binary(clf, X, k=k)
-        else:
-            dims = self.top_shap_dimensions_multi(clf, X, k=k)
+        dims = self.top_shap_dimensions(clf, X, k=k)
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
 
-    def rand_dim_reduction(self, k=10):
+    def rand_dim_reduction(self, k):
         """
         Used for testing purposes. Takes random selection from all of embedding dimensions
         """
@@ -143,16 +140,17 @@ class WordEmbeddings:
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
 
     @staticmethod
-    def top_shap_dimensions_binary(clf, X, k):
-        if len(clf.classes_) != 2:
-            raise ValueError(
-                f"Classifier is not binary, predicting on {len(clf.classes_)} classes"
-            )
+    def top_shap_dimensions(clf, X, k):
         explainer = shap.Explainer(clf, X)
         shap_values = explainer(X)
-        vals = np.abs(shap_values.values).mean(0)
-        # Each dimension index, sorted descending-first by sum of shap score
-        sorted_dimensions = np.argsort(-vals, axis=0)
+        logger.log(f"Classifier has {len(clf.classes_)} classes")
+        if len(clf.classes_) == 2:
+            vals = np.abs(shap_values.values).mean(0)
+            # Each dimension index, sorted descending-first by sum of shap score
+            sorted_dimensions = np.argsort(-vals, axis=0)
+        else:
+            vals = np.sum(np.abs(shap_values.values), axis=2).mean(0)
+            sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
 
     @staticmethod
