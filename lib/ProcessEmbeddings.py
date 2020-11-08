@@ -31,7 +31,11 @@ import senteval
 
 CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "STS", "SST", "TREC", "MRPC"]
 SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS16"]
-
+"""
+Increased scores on baseline tests:
+    - Data leakage?
+    - Or, cutting out the 'noisy' dimensions and allowing model to classify based on aspects relevant to task
+"""
 class WordEmbeddings:
     def __init__(self, vector_file, is_word2vec=False, normalize_on_load=False):
         self.vector_file = vector_file if vector_file else "./embeds/glove.6B.300d.txt"
@@ -129,6 +133,7 @@ class WordEmbeddings:
         dims = self.top_shap_dimensions(clf, X, k=k)
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+        return dims
 
     def rand_dim_reduction(self, k):
         """
