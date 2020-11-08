@@ -230,7 +230,7 @@ class WordEmbeddings:
     def prepare(self, params, samples):
         _, params.word2id = self._create_dictionary(samples)
         params.word_vec = self._load_eval_vectors(params.word2id)
-        params.wvec_dim = params.word_vec.shape[1]
+        params.wvec_dim = params.word_vec["the"].shape[0]
         return
 
     def _load_eval_vectors(self, word2id):
