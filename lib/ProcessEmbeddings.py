@@ -143,6 +143,7 @@ class WordEmbeddings:
         logger.status_update(f"Randomly selected dimension indices {dims}")
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+        return dims
 
     @staticmethod
     def top_shap_dimensions(clf, X, k):
