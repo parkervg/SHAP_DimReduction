@@ -28,7 +28,7 @@ def visualize_results(summary_dir: str=None, json_paths: list=None, label_bars=T
             data[modelname].append(score)
         if not ordered_tasks:
             ordered_tasks = [
-                title for title in scores["classification_scores"] if title != "SUBJ"
+                title for title in scores["classification_scores"]
             ]
     data["tasks"] = ordered_tasks
     df = pd.DataFrame(data=data)
