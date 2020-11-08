@@ -123,6 +123,7 @@ class WordEmbeddings:
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
 
     def shap_dim_reduction(self, task, k):
+        self.function_log.append("shap_dim_reduction")
         acc, clf, X, Y = self.model_inference(task)
         logger.status_update(f"Original accuracy on task {task}: {acc}")
         if len(clf.classes_) == 2:
