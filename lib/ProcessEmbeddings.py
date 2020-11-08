@@ -125,6 +125,7 @@ class WordEmbeddings:
             self.embeds = fcwta.encode(sess, self.embeds)
         tf.reset_default_graph()
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
+        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
 
     def shap_dim_reduction(self, task, k):
         self.function_log.append("shap_dim_reduction")
