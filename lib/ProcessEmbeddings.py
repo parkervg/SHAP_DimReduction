@@ -129,9 +129,9 @@ class WordEmbeddings:
 
     def shap_dim_reduction(self, task, k):
         self.function_log.append("shap_dim_reduction")
-        acc, clf, X, Y = self.model_inference(task)
+        acc, clf, X_train, X_test = self.model_inference(task)
         logger.status_update(f"Original accuracy on task {task}: {acc}")
-        dims = self.top_shap_dimensions(clf, X, k=k)
+        dims = self.top_shap_dimensions(clf, X_train, k=k)
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
         return dims
@@ -147,40 +147,40 @@ class WordEmbeddings:
         return dims
 
     @staticmethod
-    def top_shap_dimensions(clf, X, k):
-        explainer = shap.Explainer(clf, X)
-        shap_values = explainer(X)
+    def top_shap_dimensions(clf, X_train, k):
+        explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
+        shap_values = explainer(X_train)
         logger.log(f"Classifier has {len(clf.classes_)} classes")
         if len(clf.classes_) == 2:
             vals = np.abs(shap_values.values).mean(0)
-            # Each dimension index, sorted descending-first by sum of shap score
+            # Each dimension index, sorted descending by sum of shap score
             sorted_dimensions = np.argsort(-vals, axis=0)
         else:
             vals = np.sum(np.abs(shap_values.values), axis=2).mean(0)
             sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
 
-    @staticmethod
-    def top_shap_dimensions_multi(clf, X, k):
-        if len(clf.classes_) == 2:
-            raise ValueError(
-                f"Classifier is not multiclass, predicting on {len(clf.classes_)} classes"
-            )
-        explainer = shap.Explainer(clf, X)
-        shap_values = explainer(X)
-        vals = np.sum(shap_values.values, axis=0)
-        dim_per_label = int(k / len(clf.classes_))
-        logger.log(f"Selecting {dim_per_label} dimensions per label...")
-        top_dims = {}
-        used_dims = set()
-        for label_ind in range(vals.shape[1]):
-            scores = vals[:, label_ind]
-            sorted_dimensions = np.argsort(-scores, axis=0)
-            top_dims[label_ind] = [i for i in sorted_dimensions if i not in used_dims][:dim_per_label]
-            for dim in top_dims[label_ind]:
-                used_dims.add(dim)
-        dims = [item for sublist in top_dims.values() for item in sublist]
-        return dims
+    # @staticmethod
+    # def top_shap_dimensions_multi(clf, X, k):
+    #     if len(clf.classes_) == 2:
+    #         raise ValueError(
+    #             f"Classifier is not multiclass, predicting on {len(clf.classes_)} classes"
+    #         )
+    #     explainer = shap.Explainer(clf, X)
+    #     shap_values = explainer(X)
+    #     vals = np.sum(shap_values.values, axis=0)
+    #     dim_per_label = int(k / len(clf.classes_))
+    #     logger.log(f"Selecting {dim_per_label} dimensions per label...")
+    #     top_dims = {}
+    #     used_dims = set()
+    #     for label_ind in range(vals.shape[1]):
+    #         scores = vals[:, label_ind]
+    #         sorted_dimensions = np.argsort(-scores, axis=0)
+    #         top_dims[label_ind] = [i for i in sorted_dimensions if i not in used_dims][:dim_per_label]
+    #         for dim in top_dims[label_ind]:
+    #             used_dims.add(dim)
+    #     dims = [item for sublist in top_dims.values() for item in sublist]
+    #     return dims
 
     def take_dims(self, dims):
         """
@@ -394,7 +394,7 @@ class WordEmbeddings:
         }
         se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
         results = se.eval(task)
-        return results["acc"], results["classifier"], results["X"], results["Y"]
+        return results["acc"], results["classifier"], results["X_train"], results["X_test"], results["Y"]
 
     def save_summary_json(self, summary_file_name, overwrite):
         if not os.path.isdir("summary"):
