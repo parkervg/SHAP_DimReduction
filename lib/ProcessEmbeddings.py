@@ -35,6 +35,9 @@ SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS1
 Increased scores on baseline tests:
     - Data leakage?
     - Or, cutting out the 'noisy' dimensions and allowing model to classify based on aspects relevant to task
+TODO:
+    - Offer algorithmic way of deciding optimal SHAP dimensions to take
+    - Do analysis over variance explained per SHAP dimensions
 """
 class WordEmbeddings:
     def __init__(self, vector_file, is_word2vec=False, normalize_on_load=False):
@@ -138,11 +141,11 @@ class WordEmbeddings:
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
         return dims
 
-    def rand_dim_reduction(self, k):
+    def rand_dim_reduction(self, k, avoid_dims=[]):
         """
         Used for testing purposes. Takes random selection from all of embedding dimensions
         """
-        dims = random.sample(range(self.embeds.shape[1]), k=k)
+        dims = random.sample([i for i in range(self.embeds.shape[1]) if i not in avoid_dims], k=k)
         logger.status_update(f"Randomly selected dimension indices {dims}")
         self.take_dims(dims)
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
@@ -361,7 +364,6 @@ class WordEmbeddings:
             summary_file_name=summary_file_name,
             senteval_config=senteval_config,
         )
-        # self.similarity_tasks(save_summary=save_summary, summary_file_name=summary_file_name)
         self.summary["original_dim"] = self.original_dim
         self.summary["final_dim"] = self.embeds.shape[1]
         self.summary["process"] = self.function_log
