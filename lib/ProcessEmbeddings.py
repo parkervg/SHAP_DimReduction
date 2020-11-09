@@ -46,6 +46,7 @@ class WordEmbeddings:
         self.normalize_on_load = normalize_on_load
         self.prev_components = np.empty((0, 0))
         self.function_log = []
+        self.train_vocab = []
         if is_word2vec:
             self.load_word2vec_vectors()
         else:
@@ -129,7 +130,8 @@ class WordEmbeddings:
 
     def shap_dim_reduction(self, task, k):
         self.function_log.append("shap_dim_reduction")
-        acc, clf, X_train, X_test = self.model_inference(task)
+        acc, clf, X_train, text = self.model_inference(task)
+        self.make_train_vocab(text[:X_train.shape[0]]) # only sending text used from training
         logger.status_update(f"Original accuracy on task {task}: {acc}")
         dims = self.top_shap_dimensions(clf, X_train, k=k)
         self.take_dims(dims)
@@ -146,6 +148,13 @@ class WordEmbeddings:
         logger.status_update(f"New shape of embeds is {self.embeds.shape}")
         return dims
 
+    def make_train_vocab(self, train_text):
+        """
+        Flattens train_text and only keeps unique words.
+        """
+        self.train_text = set([word for sample in train_text for word in sample])
+
+
     @staticmethod
     def top_shap_dimensions(clf, X_train, k):
         explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
@@ -159,6 +168,17 @@ class WordEmbeddings:
             vals = np.sum(np.abs(shap_values.values), axis=2).mean(0)
             sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
+
+    @staticmethod
+    def subspace_score(word: str, dims: list) -> float:
+        """
+        As defined in Jang et al.
+        """
+        v = word_vectors[word]
+        slice = np.take(v, indices=dims)
+        sum_slice = np.sum(slice, axis=0)
+        return (sum_slice / len(dims))
+
 
     # @staticmethod
     # def top_shap_dimensions_multi(clf, X, k):
@@ -187,6 +207,23 @@ class WordEmbeddings:
         Restricts self.embeds to only those dimensions whose indices are in dims.
         """
         self.embeds = np.take(self.embeds, indices=dims, axis=1)
+
+    def model_inference(self, task):
+        """
+        Returns the classfier and X, text data used in SentEval task
+        """
+        # Set params for SentEval
+        params_senteval = {"task_path": PATH_TO_DATA, "usepytorch": False, "kfold": 5}
+        params_senteval["classifier"] = {
+            "nhid": 0,
+            "optim": "rmsprop",
+            "batch_size": 128,
+            "tenacity": 3,
+            "epoch_size": 2,
+        }
+        se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
+        results = se.eval(task)
+        return results["acc"], results["classifier"], results["X_train"], results["text"]
 
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
@@ -378,23 +415,6 @@ class WordEmbeddings:
                     "{}: {}".format(k, results[k]["all"]["spearman"]["mean"])
                 )
                 print()
-
-    def model_inference(self, task):
-        """
-        Returns the classfier and X, Y data used in SentEval task
-        """
-        # Set params for SentEval
-        params_senteval = {"task_path": PATH_TO_DATA, "usepytorch": False, "kfold": 5}
-        params_senteval["classifier"] = {
-            "nhid": 0,
-            "optim": "rmsprop",
-            "batch_size": 128,
-            "tenacity": 3,
-            "epoch_size": 2,
-        }
-        se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
-        results = se.eval(task)
-        return results["acc"], results["classifier"], results["X_train"], results["X_test"], results["Y"]
 
     def save_summary_json(self, summary_file_name, overwrite):
         if not os.path.isdir("summary"):
