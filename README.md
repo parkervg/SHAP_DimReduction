@@ -31,3 +31,49 @@ WE.save_vectors(output_file="embeds/glove_algo150.txt")
 ```shell
 python3 run-senteval.py -tests "MPQA" -path "embeds/glove_algo150.txt" -pytorch false
 ```
+
+
+
+#### Getting top ngrams per task using SHAP dimensions
+```shell
+python3 -m lib.get_top_shap_grams SUBJ --ngram_size 4
+```
+Outputs:
+
+```shell
+2020-11-09 22:48:28 INFO     The label 1 refers to objective statements, and 0 refers to subjective statements
+
+2020-11-09 22:48:40 INFO     Top ngrams for class 0:
+visceral excitement
+zhao benshan
+cel animation
+drug kingpin
+vincent d'onofrio
+slapstick humor
+cgi animation
+spousal abuse
+visual panache
+insider clique
+hilarity ensues
+drug dealers
+slapstick comedy
+b-movie imagination
+drug overdose
+
+2020-11-09 22:48:53 INFO     Top ngrams for class 1:
+wealthy american
+businessman who
+african american
+officer who
+wife who
+writer who
+director who
+american living
+marine who
+australian director
+british officer who
+who -
+- who
+children who
+who became
+```
