@@ -40,10 +40,11 @@ python3 -m lib.get_top_shap_grams SUBJ --ngram_size 4
 ```
 Outputs:
 
-```shell
-2020-11-09 22:48:28 INFO     The label 1 refers to objective statements, and 0 refers to subjective statements
+```
+The label 1 refers to objective statements, and 0 refers to subjective statements
 
-2020-11-09 22:48:40 INFO     Top ngrams for class 0:
+Top ngrams for class 0:
+
 visceral excitement
 zhao benshan
 cel animation
@@ -60,7 +61,8 @@ slapstick comedy
 b-movie imagination
 drug overdose
 
-2020-11-09 22:48:53 INFO     Top ngrams for class 1:
+Top ngrams for class 1:
+
 wealthy american
 businessman who
 african american
