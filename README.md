@@ -29,14 +29,14 @@ WE.save_vectors(output_file="embeds/glove_algo150.txt")
 
 #### Testing on SentEval Tasks
 ```shell
-python3 run-senteval.py -tests "MPQA" -path "embeds/glove_algo150.txt" -pytorch false
+python3 -m cli.run-senteval -tests "MPQA" -path "embeds/glove_algo150.txt" -pytorch false
 ```
 
 
 
 #### Getting top ngrams per task using SHAP dimensions
 ```shell
-python3 -m lib.get_top_shap_grams SUBJ --ngram_size 4
+python3 -m cli.get_top_shap_grams SUBJ --ngram_size 4
 ```
 Outputs:
 
