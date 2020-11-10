@@ -7,8 +7,6 @@ def get_top_shap_grams(task, k, n):
     out = WE.top_ngrams_per_class(task=task, k=k, n=n)
 
 
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Grabs top ngrams per class based on SHAP dimensions'
