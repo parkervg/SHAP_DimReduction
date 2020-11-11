@@ -11,7 +11,7 @@ CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST5", "TREC"]
 SIMILARITY_TASKS = ['STS12', 'STS13', 'STS14']
 ALL_TASKS = BINARY_CLASSIFICATION_TASKS + MULTICLASS_CLASSIFICATION_TASKS + SIMILARITY_TASKS
 
-def algo_n(output_dir, dims):
+def algo_n(WE, output_dir, dims):
     summary_file_name=f"{output_dir}/algo-n_{dims}.json"
     # PPE
     WE.subract_mean()
@@ -32,8 +32,9 @@ def algo_n(output_dir, dims):
 
     WE.reset()
     assert WE.vectors.shape[1] == 300
+    return WE
 
-def shap_algo(output_dir, dims):
+def shap_algo(WE, output_dir, dims):
     summary_file_name=f"{output_dir}/shap-algo_{dims}.json"
     for task in CLASSIFICATION_TASKS:
       # PPE
@@ -54,9 +55,9 @@ def shap_algo(output_dir, dims):
 
     WE.reset()
     assert WE.vectors.shape[1] == 300
+    return WE
 
-
-def shap_ppe(output_dir, dims):
+def shap_ppe(WE, output_dir, dims):
     summary_file_name=f"{output_dir}/shap-ppe_{dims}.json"
     for task in CLASSIFICATION_TASKS:
       # PPE
@@ -77,9 +78,9 @@ def shap_ppe(output_dir, dims):
 
     WE.reset()
     assert WE.vectors.shape[1] == 300
+    return WE
 
-
-def shap_(output_dir, dims):
+def shap_(WE, output_dir, dims):
     summary_file_name=f"{output_dir}/shap_{dims}.json"
     for task in CLASSIFICATION_TASKS:
       WE.shap_dim_reduction(task=task, k=dims)
@@ -88,7 +89,7 @@ def shap_(output_dir, dims):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
       assert WE.vectors.shape[1] == 300
-
+      return WE
 
 def evaluate_vectors(vector_file, output_dir):
     if output_dir[-1] == "/": output_dir = output_dir[:-1]
@@ -97,7 +98,7 @@ def evaluate_vectors(vector_file, output_dir):
     summary_file_name=f"{output_dir}/glove.json"
     WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
     for dim in [50, 100, 150, 200]:
-        algo_n(output_dir, dim)
-        shap_algo(output_dir, dim)
-        shap_ppe(output_dir, dim)
-        shap_(output_dir, dim)
+        WE = algo_n(WE, output_dir, dim)
+        WE = shap_algo(WE, output_dir, dim)
+        WE = shap_ppe(WE, output_dir, dim)
+        WE = shap_(WE, output_dir, dim)
