@@ -5,9 +5,22 @@ from collections import defaultdict
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import re
+import numpy as np
+from scipy.interpolate import interp1d
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
 
-def visualize_results(summary_dir: str=None, json_paths: list=None, label_bars=True):
+def natural_keys(text):
+    '''
+    alist.sort(key=natural_keys) sorts in human order
+    http://nedbatchelder.com/blog/200712/human_sorting.html
+    (See Toothy's implementation in the comments)
+    '''
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
+
+def create_bar(summary_dir: str=None, json_paths: list=None, label_bars=True):
     """
     Creates seaborn grouped bar chart of scores on senteval classification tasks.
     """
@@ -66,3 +79,55 @@ def visualize_results(summary_dir: str=None, json_paths: list=None, label_bars=T
     ax.set_ylim(min_val, max_val)
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0, fontsize=14)
     plt.show()
+
+def create_scatter(task, summary_dir: str=None, json_paths: list=None):
+    if summary_dir and json_paths:
+        raise ValueError("Only one of 'summary_dir', 'json_paths' can be specified.")
+    if summary_dir: all_files = sorted(glob.glob("{}/*.json".format(summary_dir)), key=str.lower)
+    elif json_paths: all_files = sorted(json_paths, key=str.lower)
+
+    algo_n = sorted([f for f in all_files if re.search(r'algo-n_.*?(?=\.json)', f)], key=natural_keys)
+    shap_algo = sorted([f for f in all_files if re.search(r'shap-algo_.*?(?=\.json)', f)], key=natural_keys)
+    shap_ppe = sorted([f for f in all_files if re.search(r'shap-ppe_.*?(?=\.json)', f)], key=natural_keys)
+    shap_ = sorted([f for f in all_files if re.search(r'shap_.*?(?=\.json)', f)], key=natural_keys)
+
+    data_dict = defaultdict(list)
+    df = pd.DataFrame(columns=['vector_name', 'accuracy', 'dimensions'])
+    for group in [algo_n, shap_algo, shap_ppe, shap_]:
+        for filename in group:
+            with open(filename) as f:
+                dims = int(re.search(r'\d\d(\d)?(?=\.json)', filename).group())
+                data = json.load(f)
+                vector_name = re.sub(r'_\d\d(\d)?$', '', os.path.splitext(os.path.basename(filename))[0])
+                df.loc[-1] = [vector_name.upper(), data['classification_scores'][task], dims]
+                df.index = df.index + 1
+                df.sort_index()
+                data_dict[re.sub(r'_\d\d(\d)?$', '', os.path.splitext(os.path.basename(filename))[0])].append(data['classification_scores'][task])
+
+
+    x = [50, 100, 150, 200]
+    markers = ['^', 'o', 'D', '*']
+    fig, ax = plt.subplots()
+    fig.set_size_inches(15, 10)
+    sns.set_palette("husl")
+    sns.despine(ax=ax, left=True, top=True, bottom=True, right=True)
+    plt.grid(axis='x', b=None)
+    ax.set_xticks(ticks=x)
+    sp = sns.scatterplot(data=df, x="dimensions", y="accuracy", hue="vector_name", style="vector_name", s=90)
+    sp.set_xlabel("Dimensions", fontsize=12)
+    sp.set_ylabel("Accuracy", fontsize=12)
+    for ix, (vector_name, scores) in enumerate(data_dict.items()):
+        x_new = np.linspace(min(x), max(x), 500)
+        f = interp1d(x, scores, kind="quadratic")
+        y_smooth=f(x_new)
+        sns.lineplot(x_new, y_smooth)
+    plt.legend(
+               frameon=False,
+               bbox_to_anchor=(0.5, 1.05),
+               loc='upper center',
+               borderaxespad=0.0,
+               fontsize=14,
+               ncol=4
+               )
+    plt.rcParams["font.family"] = "Times"
+    fig.suptitle(f"{task} Scores", fontsize=20, fontweight="bold")
