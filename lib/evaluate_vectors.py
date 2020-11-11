@@ -53,8 +53,9 @@ def shap_algo(WE, output_dir, dims):
       logger.status_update("Running SentEval tasks...")
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
-    WE.reset()
-    assert WE.vectors.shape[1] == 300
+      WE.reset()
+      assert WE.vectors.shape[1] == 300
+
     return WE
 
 def shap_ppe(WE, output_dir, dims):
@@ -76,8 +77,9 @@ def shap_ppe(WE, output_dir, dims):
       logger.status_update("Running SentEval tasks...")
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
-    WE.reset()
-    assert WE.vectors.shape[1] == 300
+      WE.reset()
+      assert WE.vectors.shape[1] == 300
+
     return WE
 
 def shap_(WE, output_dir, dims):
@@ -89,7 +91,8 @@ def shap_(WE, output_dir, dims):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
       assert WE.vectors.shape[1] == 300
-      return WE
+
+    return WE
 
 def evaluate_vectors(vector_file, output_dir):
     if output_dir[-1] == "/": output_dir = output_dir[:-1]

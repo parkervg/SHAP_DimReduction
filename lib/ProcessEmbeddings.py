@@ -366,6 +366,7 @@ class WordEmbeddings:
         Resets modified vectors to whatever the original loaded vectors were
         """
         self.vectors = copy.deepcopy(self.original_vectors)
+        self.function_log = []
 
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
