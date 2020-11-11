@@ -12,6 +12,7 @@ SIMILARITY_TASKS = ['STS12', 'STS13', 'STS14']
 ALL_TASKS = BINARY_CLASSIFICATION_TASKS + MULTICLASS_CLASSIFICATION_TASKS + SIMILARITY_TASKS
 
 def evaluate_vectors(vector_file, output_dir):
+    if output_dir[-1] == "/": output_dir = output_dir[:-1]
     WE = WordEmbeddings(vector_file=vector_file)
 
     """
@@ -19,7 +20,7 @@ def evaluate_vectors(vector_file, output_dir):
     300
     """
     summary_file_name=f"{output_dir}/glove.json"
-    WE.evaluate(senteval_tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name)
+    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name)
 
     """
     Algo-N
@@ -41,7 +42,7 @@ def evaluate_vectors(vector_file, output_dir):
     WE.remove_top_components(k=7)
 
     logger.status_update("Running SentEval tasks...")
-    WE.evaluate(senteval_tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
+    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
 
     WE.reset()
     assert WE.embeds.shape[1] == 300
