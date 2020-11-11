@@ -594,8 +594,8 @@ class WordEmbeddings:
                 logger.yellow("Existing summary file found, appending new output")
                 with open("summary/{}".format(summary_file_name)) as f:
                     existing_data = json.load(f)
-                existing_data = self.append_to_output(existing_data, "classification_scores", overwrite_task)
-                existing_data = self.append_to_output(existing_data, "similarity_scores", overwrite_task)
+                existing_data = self.append_to_output(existing_data, "classification_scores", overwrite_task=overwrite_task)
+                existing_data = self.append_to_output(existing_data, "similarity_scores", overwrite_task=overwrite_task)
                 with open("summary/{}".format(summary_file_name), "w") as f:
                     json.dump(existing_data, f)
         else:
@@ -603,7 +603,7 @@ class WordEmbeddings:
                 json.dump(self.summary, f)
         logger.status_update("Summary saved to summary/{}".format(summary_file_name))
 
-    def append_to_output(self, existing_data, section, force=False):
+    def append_to_output(self, existing_data, section, overwrite_task):
         """
         Adds a score to an existing summary file. If force=true, resets an existing score as well.
         """
