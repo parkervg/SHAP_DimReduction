@@ -525,7 +525,7 @@ class WordEmbeddings:
         """
         self.summary = {}
         self.run_senteval(
-            senteval_tasks,
+            tasks,
             save_summary=save_summary,
             summary_file_name=summary_file_name,
             senteval_config=senteval_config,
