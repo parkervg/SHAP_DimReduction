@@ -45,7 +45,7 @@ def evaluate_vectors(vector_file, output_dir):
     WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
 
     """
     Shap-Algo with Glove
@@ -70,7 +70,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
 
     """
     Shap-Algo with Glove
@@ -95,7 +95,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
 
 
     """
@@ -121,7 +121,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name="SHAP/shap-ppe_50.json", overwrite_task=True)
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
 
     """
     Shap-PPE with Glove
@@ -146,7 +146,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
 
     """
     Shap on Glove
@@ -159,7 +159,7 @@ def evaluate_vectors(vector_file, output_dir):
       logger.status_update("Running SentEval tasks...")
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
-      assert WE.embeds.shape[1] == 300
+      assert WE.vectors.shape[1] == 300
 
 
     """
@@ -173,7 +173,7 @@ def evaluate_vectors(vector_file, output_dir):
       logger.status_update("Running SentEval tasks...")
       WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
-      assert WE.embeds.shape[1] == 300
+      assert WE.vectors.shape[1] == 300
 
     WE.reset()
-    assert WE.embeds.shape[1] == 300
+    assert WE.vectors.shape[1] == 300
