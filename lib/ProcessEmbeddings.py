@@ -6,7 +6,9 @@ import os
 import uuid
 import sys
 import random
+import nltk
 import math
+import copy
 import numpy as np
 from sklearn.decomposition import PCA
 from typing import Iterable, Dict, Any, Tuple, List, Sequence, Generator, Callable, Union
@@ -29,7 +31,7 @@ PATH_TO_DATA = "./SentEval/data"
 WORD_SIM_DIR = "./data/word-sim"
 # Interpretation of classes in TREC dataset
 idx2tgt = {0: "ABBR", 1: "DESC", 2: "ENTY", 3: "HUM", 4: "LOC", 5: "NUM"}
-task_explanations = {"SUBJ": "The label 1 refers to objective statements, and 0 refers to subjective statements",
+TASK_EXPLANATIONS = {"SUBJ": "The label 1 refers to objective statements, and 0 refers to subjective statements",
                 "CR": "A label of 1 is positive sentiment, and 0 is negative sentiment",
                 "MR": "A label of 1 is positive sentiment, and 0 is negative sentiment",
                 "MPQA": "A label of 1 is positive sentiment, and 0 is negative sentiment",
@@ -49,6 +51,7 @@ Increased scores on baseline tests:
 TODO:
     - Offer algorithmic way of deciding optimal SHAP dimensions to take
     - Do analysis over variance explained per SHAP dimensions
+    - Add class method to predict on new text with the created classifier
 """
 
 
@@ -56,7 +59,7 @@ class WordEmbeddings:
     def __init__(
         self, vector_file: str, is_word2vec: bool = False, normalize_on_load: bool = False
     ):
-        self.vector_file = vector_file if vector_file else "./embeds/glove.6B.300d.txt"
+        self.vector_file = vector_file if vector_file else "./vectors/glove.6B.300d.txt"
         # On normalization:
         # Levy et. al. 2015
         #   "Vectors are normalized to unit length before they are used for similarity calculation,
@@ -66,8 +69,7 @@ class WordEmbeddings:
         self.function_log = []
         self.train_ngrams = []
         self.class_shaps = {}
-        self.clf = None
-        self.X_train = None
+        self.task_data = defaultdict(lambda: defaultdict(dict)) # Structure of {task: {'clf': clf, 'X_train': X_train, 'class_shaps': class_shaps, 'reduced_dims': dims}}
         if is_word2vec:
             self.load_word2vec_vectors()
         else:
@@ -79,12 +81,12 @@ class WordEmbeddings:
         """
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         model = KeyedVectors.load_word2vec_format(
-            "embeds/GoogleNews-vectors-negative300.bin", binary=True
+            "vectors/GoogleNews-vectors-negative300.bin", binary=True
         )
-        self.embeds = model.vectors
+        self.vectors = model.vectors
+        self.original_vectors = copy.deepcopy(self.vectors)
         self.ordered_vocab = model.vocab.keys()
-        # self.embeds = np.asarray(self.embeds) # Already a numpy array
-        self.original_dim = self.embeds.shape[1]
+        self.original_dim = self.vectors.shape[1]
 
     def load_vectors(self):
         """
@@ -92,56 +94,58 @@ class WordEmbeddings:
         """
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         self.ordered_vocab = []
-        self.embeds = []
+        self.vectors = []
         with io.open(self.vector_file, "r", encoding="utf-8") as f:
             for line in f:
                 word, vec = line.split(" ", 1)
                 self.ordered_vocab.append(word)
-                self.embeds.append(np.fromstring(vec, sep=" "))
+                self.vectors.append(np.fromstring(vec, sep=" "))
                 if self.normalize_on_load:
-                    self.embeds[-1] /= math.sqrt((self.embeds[-1] ** 2).sum() + EPSILON)
-        self.embeds = np.asarray(self.embeds)
-        self.original_dim = self.embeds.shape[1]
+                    self.vectors[-1] /= math.sqrt((self.vectors[-1] ** 2).sum() + EPSILON)
+        self.vectors = np.asarray(self.vectors)
+        self.original_vectors = copy.deepcopy(self.vectors)
+        self.original_dim = self.vectors.shape[1]
+
 
     def pca_fit_transform(self, output_dims: int):
         """
-        Fits and transforms embeds to output_dims with PCA.
+        Fits and transforms vectors to output_dims with PCA.
         """
         self.function_log.append("pca_fit_transform")
         pca = PCA(n_components=output_dims, random_state=RAND_STATE)
-        self.embeds = pca.fit_transform(self.embeds)
+        self.vectors = pca.fit_transform(self.vectors)
         self.prev_components = pca.components_
 
     def pca_fit(self):
         """
-        Just fits PCA on embeds, doesn't change state of embeds.
+        Just fits PCA on vectors, doesn't change state of vectors.
         """
         self.function_log.append("pca_fit")
-        pca = PCA(n_components=len(self.embeds[0]))
-        pca.fit(self.embeds)
+        pca = PCA(n_components=len(self.vectors[0]))
+        pca.fit(self.vectors)
         self.prev_components = pca.components_
 
     def remove_top_components(self, k: int):
         """
-        From a fitted PCA, removes the projection of the top k principle components in embeds.
+        From a fitted PCA, removes the projection of the top k principle components in vectors.
         Lines 3-5 of Mu's post-processing algorithm.
         """
         self.function_log.append("remove_top_components")
         if self.prev_components.size == 0:
             raise ValueError("No value found for prev_components. Did you call pca_fit_transform?")
         z = []
-        for ix, x in enumerate(self.embeds):
+        for ix, x in enumerate(self.vectors):
             for u in self.prev_components[0:k]:
                 x = x - np.dot(u.transpose(), x) * u
             z.append(x)
-        self.embeds = np.asarray(z)
+        self.vectors = np.asarray(z)
 
     def subract_mean(self):
         """
-        Subtracts mean from the embeds.
+        Subtracts mean from the vectors.
         """
         self.function_log.append("subract_mean")
-        self.embeds = self.embeds - np.mean(self.embeds)
+        self.vectors = self.vectors - np.mean(self.vectors)
 
     def sparsify(self, checkpoint_path: str):
         """
@@ -159,34 +163,31 @@ class WordEmbeddings:
                 learning_rate=flags_file.FLAGS.learning_rate,
             )
             fcwta.saver.restore(sess, checkpoint_path)
-            self.embeds = fcwta.encode(sess, self.embeds)
+            self.vectors = fcwta.encode(sess, self.vectors)
         tf.reset_default_graph()
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
-        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+        logger.status_update(f"New shape of vectors is {self.vectors.shape}")
 
     def shap_dim_reduction(self, task: str, k: int) -> List[int]:
         """
-        Reduces embeds to only contain the top k dimensions identified by SHAP.
+        Reduces vectors to only contain the top k dimensions identified by SHAP.
         """
         self.function_log.append("shap_dim_reduction")
-        acc, self.clf, self.X_train, text = self.model_inference(task)
-        self.make_train_ngrams(
-            text[: self.X_train.shape[0]]
-        )  # only sending text used from training
+        acc = self.model_inference(task) # Adds to task_data dict
         logger.status_update(f"Original accuracy on task {task}: {acc}")
-        dims = self.top_shap_dimensions(k=k)
+        dims = self.top_shap_dimensions(task, k=k)
         self.take_dims(dims)
-        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+        logger.status_update(f"New shape of vectors is {self.vectors.shape}")
         return dims
 
     def rand_dim_reduction(self, k: int, avoid_dims: List[int] = []) -> List[int]:
         """
         Used for testing purposes. Takes random selection from all of embedding dimensions
         """
-        dims = random.sample([i for i in range(self.embeds.shape[1]) if i not in avoid_dims], k=k)
+        dims = random.sample([i for i in range(self.vectors.shape[1]) if i not in avoid_dims], k=k)
         logger.status_update(f"Randomly selected dimension indices {dims}")
         self.take_dims(dims)
-        logger.status_update(f"New shape of embeds is {self.embeds.shape}")
+        logger.status_update(f"New shape of vectors is {self.vectors.shape}")
         return dims
 
     def make_train_ngrams(self, train_text: str, n: int = 3):
@@ -195,7 +196,7 @@ class WordEmbeddings:
         """
         logger.status_update("Creating train ngrams...")
         ngrammed_text = [self.get_ngrams(sample, n=n) for sample in train_text]
-        self.train_ngrams = set(tuple(gram) for gram in list(
+        return set(tuple(gram) for gram in list(
             itertools.chain.from_iterable(ngrammed_text)
         ))  # Flatten list of lists
 
@@ -213,14 +214,17 @@ class WordEmbeddings:
                     output.append(to_add)
         return output
 
-    def top_shap_dimensions(self, k: int) -> List[int]:
+    def top_shap_dimensions(self, task: str, k: int) -> List[int]:
         """
         Averages over absolute shap values for each dimension, returning k top dimensions.
         """
-        explainer = shap.LinearExplainer(self.clf, self.X_train, feature_dependence="independent")
-        shap_values = explainer(self.X_train)
-        logger.log(f"Classifier has {len(self.clf.classes_)} classes")
-        if len(self.clf.classes_) == 2:
+        # Unpacking from task_data
+        clf = self.task_data[task]['clf']
+        X_train = self.task_data[task]['X_train']
+        explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
+        shap_values = explainer(X_train)
+        logger.log(f"Classifier has {len(clf.classes_)} classes")
+        if len(clf.classes_) == 2:
             vals = np.abs(shap_values.values).mean(0)
             # Each dimension index, sorted descending by sum of shap score
             sorted_dimensions = np.argsort(-vals, axis=0)
@@ -229,76 +233,99 @@ class WordEmbeddings:
             sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
 
-    def shap_by_class(self, k: int = 10):
+    def shap_by_class(self, task: str, k: int = 10):
         """
         Identifies those dimensions with the highest average shap score for each predicted class.
         """
+        # Unpack from task_data dict
+        clf = self.task_data[task]['clf']
+        X_train = self.task_data[task]['X_train']
+
         logger.status_update("Finding top dimensions across classes...")
-        explainer = shap.LinearExplainer(self.clf, self.X_train, feature_dependence="independent")
-        shap_values = explainer(self.X_train)
-        if len(self.clf.classes_) == 2:
+        explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
+        shap_values = explainer(X_train)
+        self.task_data[task]['class_shaps'] = {}
+        if len(clf.classes_) == 2:
             # For binary classification: negative shap implies push to class 0, positive to 1
             sorted_values = np.argsort(shap_values.values.mean(0), axis=0)
             class_zero_dims = sorted_values[:k]
             class_one_dims = sorted_values[-k:]
-            self.class_shaps = {0: class_zero_dims, 1: class_one_dims}
+            self.task_data[task]['class_shaps'] = {0: class_zero_dims, 1: class_one_dims}
         else:
             vals = np.sum(shap_values.values, axis=0)
             for label_ind in range(vals.shape[1]):
                 scores = vals[:, label_ind]
                 sorted_dimensions = np.argsort(-scores, axis=0)
-                self.class_shaps[label_ind] = sorted_dimensions[:k]
+                self.task_data[task]['class_shaps'][label_ind] = sorted_dimensions[:k]
 
-    def top_ngrams_per_class(self, task: str, k: int = 10, n: int = 3) -> Dict[str, float]:
+    def top_ngrams_per_class(self, task: str,
+                             k: int = 10, # How many top dimensions to take per class
+                             n: int = 3, # ngram size
+                             display_count: int = 15 # Ngrams to display for each class
+                             ) -> Dict[str, float]:
         """
         Logs the ngrams with the highest subspace score.
         """
-        if not self.clf or self.X_train:
-            _, self.clf, self.X_train, text = self.model_inference(task)
-        if not self.class_shaps:
-            self.shap_by_class()
-        if not self.train_ngrams:
-            self.make_train_ngrams(
-                text[: self.X_train.shape[0]], n=n
-            )  # only sending text used from training
-        self.vector_dict = self.get_vector_dict()
+        # Unpack from task_data
+        clf = self.task_data[task]['clf']
+        if not clf:
+            self.model_inference(task)
+            clf = self.task_data[task]['clf']
+        if clf.coef_.shape[1] != self.original_dim:
+            logger.yellow(f"Classifier not trained on original dimensions, re-training model...")
+            self.model_inference(task)
+            clf = self.task_data[task]['clf']
+        if not self.task_data[task]['class_shaps'] or len(list(self.task_data[task]['class_shaps'].values())[0]) != k:
+            self.shap_by_class(task, k=k)
+        # Not saving ngrams to task_data, since they're only used in a pretty unique case
+        ngrams = self.make_train_ngrams(
+            self.task_data[task]['train_text'], n=n
+        )
         out = {}
         logger.status_update("Calculating subspace scores for ngrams...")
 
-        if task in task_explanations:
+        if task in TASK_EXPLANATIONS:
             print()
-            logger.yellow(task_explanations[task])
+            logger.yellow(TASK_EXPLANATIONS[task])
             print()
-        for class_label, shap_dims in self.class_shaps.items():
+
+        vector_dict = self.get_vector_dict(original=True)
+        for class_label, shap_dims in self.task_data[task]['class_shaps'].items():
             if task == "TREC":
                 class_label = idx2tgt[class_label]
             subspace_scores = []
             out["class_label"] = {}
             out["class_label"]["dims"] = shap_dims
-            # logger.status_update(f"SHAP dimensions for {class_label}:")
-            # logger.log(shap_dims)
-            for ngram in self.train_ngrams:
-                subspace_scores.append((ngram, self.subspace_score(ngram, shap_dims)))
+            for ngram in ngrams:
+                subspace_scores.append((ngram, self.subspace_score(ngram, shap_dims, vector_dict)))
             logger.status_update(f"Top ngrams for class {class_label}:")
-            for x in sorted(subspace_scores, key=lambda x: x[1], reverse=True)[:15]:
+            for x in sorted(subspace_scores, key=lambda x: x[1], reverse=True)[:display_count]:
                 print(" ".join(x[0]))
             print()
             out[class_label] = {}
             out[class_label]["ngrams"] = sorted(subspace_scores, key=lambda x: x[1], reverse=True)
         return out
 
-    def subspace_score(self, text: Union[str, list], dims: List[int]) -> float:
+    @staticmethod
+    def get_sentence_vector(sent: List[str], vector_dict: Dict[str, np.ndarray]) -> np.ndarray:
+        """
+        Converts a list of strings to a vector using the provided vector_dict.
+        """
+        v = []
+        for word in sent:
+            v.append(vector_dict[word])
+        v = np.mean(v, 0)
+        return v
+
+    def subspace_score(self, text: Union[str, list], dims: List[int], vector_dict: Dict[str, np.ndarray]) -> float:
         """
         As defined in Jang et al.
         Lowercases all words and returns subspace score.
         """
         if isinstance(text, str):
-            v = self.vector_dict[text]
+            v = vector_dict[text]
         else:  # Input is a list of words, average over all vectors
-            v = []
-            for word in text:
-                v.append(self.vector_dict[word])
-            v = np.mean(v, 0)
+            v = self.get_sentence_vector(text, vector_dict)
         if np.isinf(v).any():
             return 0.0
         slice = np.take(v, indices=dims)
@@ -307,11 +334,11 @@ class WordEmbeddings:
 
     def take_dims(self, dims: list):
         """
-        Restricts self.embeds to only those dimensions whose indices are in dims.
+        Restricts self.vectors to only those dimensions whose indices are in dims.
         """
-        self.embeds = np.take(self.embeds, indices=dims, axis=1)
+        self.vectors = np.take(self.vectors, indices=dims, axis=1)
 
-    def model_inference(self, task: str):
+    def model_inference(self, task: str) -> float:
         """
         Returns the classfier and X, text data used in SentEval task
         """
@@ -326,20 +353,59 @@ class WordEmbeddings:
         }
         se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
         results = se.eval(task)
-        return results["acc"], results["classifier"], results["X_train"], results["text"]
+
+        # Assign to task_data
+        self.task_data[task]["clf"] = results["classifier"]
+        self.task_data[task]["X_train"] =  results["X_train"]
+        self.task_data[task]["train_text"] = results["text"][:results["X_train"].shape[0]]
+        return results['acc']
+
+
+    def reset(self):
+        """
+        Resets modified vectors to whatever the original loaded vectors were
+        """
+        self.vectors = copy.deepcopy(self.original_vectors)
 
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
     ############################################################################
-    def get_vector_dict(self) -> Dict[str, np.ndarray]:
+    def get_vector_dict(self, original: bool=False) -> Dict[str, np.ndarray]:
         """
         Returns defaultdict of structure {word:vector}.
-        Default is -inf for missing words
+        Default is -inf for missing words.
+        If original, returns unmodified vectors from original load.
         """
         d = defaultdict(lambda: float('-inf'))
-        for k, v in zip(self.ordered_vocab, self.embeds):
-            d[k] = v
+        if original:
+            for k, v in zip(self.ordered_vocab, self.original_vectors):
+                d[k] = v
+        else:
+            for k, v in zip(self.ordered_vocab, self.vectors):
+                d[k] = v
         return d
+
+    def predict(self, text: str, task: str):
+        """
+        Uses classifier and embeddings to predict on new text.
+        """
+        # Unpack from task_data
+        clf = self.task_data[task]['clf']
+        if not clf:
+            logger.yellow(f"No classifier cached for {task}, training one now...")
+            self.model_inference(task)
+            clf = self.task_data[task]['clf']
+
+        # check for shape misalignment between trained model and current vectors
+        if clf.coef_.shape[1] != self.vectors.shape[1]:
+            logger.yellow(f"Misalignment between trained classifer ({clf.coef_.shape[1]}) and existing embed shape ({self.vectors.shape[1]}), re-training model...")
+            self.model_inference(task)
+            clf = self.task_data[task]['clf']
+
+        self.vector_dict = self.get_vector_dict()
+        text = [t.lower() for t in nltk.word_tokenize(text)]
+        v = self.get_sentence_vector(text, self.vector_dict)
+        return clf.predict(np.reshape(v, (1, -1)))
 
     @staticmethod
     def _del_all_flags(FLAGS):
@@ -383,7 +449,7 @@ class WordEmbeddings:
 
     def _load_eval_vectors(self, word2id):
         word_vec = {}
-        for word, embed in zip(self.ordered_vocab, self.embeds):
+        for word, embed in zip(self.ordered_vocab, self.vectors):
             if word in word2id:
                 word_vec[word] = embed
         logger.log(
@@ -415,7 +481,7 @@ class WordEmbeddings:
 
     # def similarity_tasks(self, save_summary=False, summary_file_name=None):
     #     self.summary["similarity_scores"] = {}
-    #     word_vecs = {word: vector for word, vector in zip(self.ordered_vocab, self.embeds)}
+    #     word_vecs = {word: vector for word, vector in zip(self.ordered_vocab, self.vectors)}
     #     # Normalize for similarity tasks
     #     # Levy et. al. 2015
     #     #   "Vectors are normalized to unit length before they are used for similarity calculation,
@@ -447,9 +513,10 @@ class WordEmbeddings:
 
     def evaluate(
         self,
-        senteval_tasks,
+        tasks,
         save_summary=False,
-        overwrite=False,
+        overwrite_file=False,
+        overwrite_task=False,
         summary_file_name=None,
         senteval_config={},
     ):
@@ -464,12 +531,14 @@ class WordEmbeddings:
             senteval_config=senteval_config,
         )
         self.summary["original_dim"] = self.original_dim
-        self.summary["final_dim"] = self.embeds.shape[1]
+        self.summary["final_dim"] = self.vectors.shape[1]
         self.summary["process"] = self.function_log
         self.summary["original_vectors"] = os.path.basename(self.vector_file)
         if save_summary:
             summary_file_name = summary_file_name if summary_file_name else str(uuid.uuid4())
-            self.save_summary_json(summary_file_name, overwrite=overwrite)
+            self.save_summary_json(summary_file_name,
+                                   overwrite_task=overwrite_task,
+                                   overwrite_file=overwrite_file)
 
     def run_senteval(self, tasks, save_summary=False, summary_file_name=None, senteval_config={}):
         if not isinstance(tasks, list):
@@ -507,11 +576,17 @@ class WordEmbeddings:
                 logger.status_update("{}: {}".format(k, results[k]["all"]["spearman"]["mean"]))
                 print()
 
-    def save_summary_json(self, summary_file_name, overwrite):
+    def save_summary_json(self,
+                          summary_file_name: str,
+                          overwrite_file: bool,
+                          overwrite_task: bool):
+        """
+        Writes to summary json. If overwrite=True, replaces the existing file with the new one.
+        """
         if not os.path.isdir("summary"):
             os.mkdir("summary")
         if os.path.exists("summary/{}".format(summary_file_name)):
-            if overwrite:
+            if overwrite_file:
                 logger.yellow("Existing summary file found, overwriting...")
                 with open("summary/{}".format(summary_file_name), "w") as f:
                     json.dump(self.summary, f)
@@ -519,8 +594,8 @@ class WordEmbeddings:
                 logger.yellow("Existing summary file found, appending new output")
                 with open("summary/{}".format(summary_file_name)) as f:
                     existing_data = json.load(f)
-                existing_data = self.append_to_output(existing_data, "classification_scores")
-                existing_data = self.append_to_output(existing_data, "similarity_scores")
+                existing_data = self.append_to_output(existing_data, "classification_scores", overwrite_task)
+                existing_data = self.append_to_output(existing_data, "similarity_scores", overwrite_task)
                 with open("summary/{}".format(summary_file_name), "w") as f:
                     json.dump(existing_data, f)
         else:
@@ -528,24 +603,31 @@ class WordEmbeddings:
                 json.dump(self.summary, f)
         logger.status_update("Summary saved to summary/{}".format(summary_file_name))
 
-    def append_to_output(self, existing_data, section):
+    def append_to_output(self, existing_data, section, force=False):
+        """
+        Adds a score to an existing summary file. If force=true, resets an existing score as well.
+        """
         for task, score in self.summary[section].items():
             if task not in existing_data[section]:
                 existing_data[section][task] = score
             else:
-                raise ValueError(f"Existing score already exists for task {task}")
+                if not force:
+                    raise ValueError(f"Existing score already exists for task {task}")
+                else:
+                    logger.yellow(f"Overwriting existing score for {task}...")
+                    existing_data[section][task] = score
         return existing_data
 
     def save_vectors(self, output_file):
         """
         Saves vectors to .txt file.
         """
-        vector_size = self.embeds.shape[1]
-        assert (len(self.ordered_vocab), vector_size) == self.embeds.shape
+        vector_size = self.vectors.shape[1]
+        assert (len(self.ordered_vocab), vector_size) == self.vectors.shape
         with open(output_file, "w", encoding="utf-8") as out:
             for ix, word in enumerate(self.ordered_vocab):
                 out.write("%s " % word)
-                for t in self.embeds[ix]:
+                for t in self.vectors[ix]:
                     out.write("%f " % t)
                 out.write("\n")
         logger.status_update("Vectors saved to {}".format(output_file))
