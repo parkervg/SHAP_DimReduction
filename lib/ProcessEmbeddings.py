@@ -611,8 +611,8 @@ class WordEmbeddings:
             if task not in existing_data[section]:
                 existing_data[section][task] = score
             else:
-                if not force:
-                    raise ValueError(f"Existing score already exists for task {task}")
+                if not overwrite_task:
+                    raise ValueError(f"Existing score already exists for task {task}. Specify 'overwrite_task' = True to overwrite.")
                 else:
                     logger.yellow(f"Overwriting existing score for {task}...")
                     existing_data[section][task] = score
