@@ -20,7 +20,7 @@ def evaluate_vectors(vector_file, output_dir):
     300
     """
     summary_file_name=f"{output_dir}/glove.json"
-    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name)
+    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
 
     """
     Algo-N
@@ -67,7 +67,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.remove_top_components(k=7)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name)
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
     assert WE.embeds.shape[1] == 300
@@ -92,7 +92,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.remove_top_components(k=7)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name)
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
     assert WE.embeds.shape[1] == 300
@@ -118,7 +118,7 @@ def evaluate_vectors(vector_file, output_dir):
       # WE.remove_top_components(k=7)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, summary_file_name="SHAP/shap-ppe_50.json")
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name="SHAP/shap-ppe_50.json", overwrite_task=True)
 
     WE.reset()
     assert WE.embeds.shape[1] == 300
@@ -143,7 +143,7 @@ def evaluate_vectors(vector_file, output_dir):
       # WE.remove_top_components(k=7)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name)
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
 
     WE.reset()
     assert WE.embeds.shape[1] == 300
@@ -157,7 +157,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.shap_dim_reduction(task=task, k=150)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, overwrite_task=True, summary_file_name=summary_file_name)
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
       assert WE.embeds.shape[1] == 300
 
@@ -171,7 +171,7 @@ def evaluate_vectors(vector_file, output_dir):
       WE.shap_dim_reduction(task=task, k=50)
 
       logger.status_update("Running SentEval tasks...")
-      WE.evaluate(tasks=task, save_summary=True, overwrite_task=True, summary_file_name=summary_file_name)
+      WE.evaluate(tasks=task, save_summary=True, summary_file_name=summary_file_name, overwrite_task=True)
       WE.reset()
       assert WE.embeds.shape[1] == 300
 
