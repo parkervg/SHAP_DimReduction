@@ -3,13 +3,21 @@ Run in Google Colab.
 """
 from lib.ProcessEmbeddings import WordEmbeddings
 from tools.Blogger import Blogger
-from lib.visualize_results import visualize_results
+from collections import defaultdict
 logger = Blogger()
 BINARY_CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA"]
 MULTICLASS_CLASSIFICATION_TASKS = ["SST5", "TREC"]
 CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST5", "TREC"]
 SIMILARITY_TASKS = ['STS12', 'STS13', 'STS14']
 ALL_TASKS = BINARY_CLASSIFICATION_TASKS + MULTICLASS_CLASSIFICATION_TASKS + SIMILARITY_TASKS
+
+
+def glove(output_dir, dims):
+    summary_file_name=f"{output_dir}/glove_{dims}.json"
+    WE = WordEmbeddings(vector_file=f"embeds/glove.6B.{dims}d.txt")
+    # Default Glove
+    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
+
 
 def algo_n(WE, output_dir, dims):
     summary_file_name=f"{output_dir}/algo-n_{dims}.json"
@@ -96,9 +104,10 @@ def shap_(WE, output_dir, dims):
 
 def evaluate_vectors(vector_file, output_dir):
     if output_dir[-1] == "/": output_dir = output_dir[:-1]
+    # Standard Glove vectors first
+    for dim in [50, 100, 200]:
+        glove(output_dir, dim)
     WE = WordEmbeddings(vector_file=vector_file)
-    # Default Glove
-    summary_file_name=f"{output_dir}/glove.json"
     WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
     for dim in [50, 100, 150, 200]:
         WE = algo_n(WE, output_dir, dim)
