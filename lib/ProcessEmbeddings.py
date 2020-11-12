@@ -566,6 +566,8 @@ class WordEmbeddings:
             if senteval_config.get("epoch_size")
             else 2,
         }
+        print(params_senteval["classifier"])
+        print(params_senteval)
         se = senteval.engine.SE(params_senteval, self.batcher, self.prepare)
         self.summary["classification_scores"] = {}
         self.summary["similarity_scores"] = {}
