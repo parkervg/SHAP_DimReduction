@@ -69,6 +69,7 @@ class WordEmbeddings:
         self.function_log = []
         self.train_ngrams = []
         self.class_shaps = {}
+        self.summary = {}
         self.task_data = defaultdict(lambda: defaultdict(dict)) # Structure of {task: {'clf': clf, 'X_train': X_train, 'class_shaps': class_shaps, 'reduced_dims': dims}}
         if is_word2vec:
             self.load_word2vec_vectors()
@@ -180,7 +181,10 @@ class WordEmbeddings:
         logger.status_update(f"New shape of vectors is {self.vectors.shape}")
         return dims
 
-    def rand_dim_reduction(self, k: int, avoid_dims: List[int] = []) -> List[int]:
+    def rand_dim_reduction(self,
+                           k: int, # Number of dimensions to sample
+                           avoid_dims: List[int] = [] # Dimensions to avoid in sampling
+                           ) -> List[int]:
         """
         Used for testing purposes. Takes random selection from all of embedding dimensions
         """
@@ -524,7 +528,6 @@ class WordEmbeddings:
         """
         Runs SentEval classification tasks, and similarity tasks from Half-Size.
         """
-        self.summary = {}
         self.run_senteval(
             tasks,
             save_summary=save_summary,
@@ -576,6 +579,7 @@ class WordEmbeddings:
                 self.summary["similarity_scores"][k] = results[k]
                 logger.status_update("{}: {}".format(k, results[k]["all"]["spearman"]["mean"]))
                 print()
+        return results
 
     def save_summary_json(self,
                           summary_file_name: str,
