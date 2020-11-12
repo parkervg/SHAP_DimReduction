@@ -131,6 +131,7 @@ def evaluate_vectors(vector_file, output_dir, prototype_config=True):
                 #150,
                 200]:
         glove(output_dir, dim, senteval_config)
+    summary_file_name=f"{output_dir}/glove_300.json"
     WE = WordEmbeddings(vector_file=vector_file)
     WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
     for dim in [50, 100, 150, 200]:
