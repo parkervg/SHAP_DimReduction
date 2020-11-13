@@ -130,32 +130,16 @@ def evaluate_vectors(vector_file, output_dir, prototype_config=True):
     else:
         senteval_config = None
     # Standard Glove vectors first
-    # for dim in [50,
-    #             100,
-    #             #150,
-    #             200]:
-    #     glove(output_dir, dim, senteval_config)
-    # summary_file_name=f"{output_dir}/glove_300.json"
+    for dim in [50,
+                100,
+                #150,
+                200]:
+        glove(output_dir, dim, senteval_config)
+    summary_file_name=f"{output_dir}/glove_300.json"
     WE = WordEmbeddings(vector_file=vector_file)
-    # WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True)
-    #
-    # WE = algo_n(WE, output_dir, 50, senteval_config)
-    # WE = shap_algo(WE, output_dir, 50, senteval_config)
-    # WE = shap_ppe(WE, output_dir, 50, senteval_config)
-
-    WE = shap_(WE, output_dir, 50, senteval_config)
-
-    WE = algo_n(WE, output_dir, 100, senteval_config)
-    WE = shap_algo(WE, output_dir, 100, senteval_config)
-    WE = shap_ppe(WE, output_dir, 100, senteval_config)
-    WE = shap_(WE, output_dir, 100, senteval_config)
-
-    WE = algo_n(WE, output_dir, 150, senteval_config)
-    WE = shap_algo(WE, output_dir, 150, senteval_config)
-    WE = shap_ppe(WE, output_dir, 150, senteval_config)
-    WE = shap_(WE, output_dir, 150, senteval_config)
-
-    WE = algo_n(WE, output_dir, 200, senteval_config)
-    WE = shap_algo(WE, output_dir, 200, senteval_config)
-    WE = shap_ppe(WE, output_dir, 200, senteval_config)
-    WE = shap_(WE, output_dir, 200, senteval_config)
+    WE.evaluate(tasks=CLASSIFICATION_TASKS, save_summary=True, summary_file_name=summary_file_name, overwrite_file=True, senteval_config=senteval_config)
+    for dim in [50, 100, 150, 200]:
+        WE = algo_n(WE, output_dir, dim, senteval_config)
+        WE = shap_algo(WE, output_dir, dim, senteval_config)
+        WE = shap_ppe(WE, output_dir, dim, senteval_config)
+        WE = shap_(WE, output_dir, dim, senteval_config)
