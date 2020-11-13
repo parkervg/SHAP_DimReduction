@@ -43,6 +43,7 @@ sys.path.insert(0, PATH_TO_SENTEVAL)
 import senteval
 
 CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST2", "SST5", "TREC", "MRPC"]
+BINARY_CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST2", "MRPC"]
 SIMILARITY_TASKS = ["SICKRelatedness", "STS12", "STS13", "STS14", "STS15", "STS16"]
 """
 Increased scores on baseline tests:
@@ -52,6 +53,7 @@ TODO:
     - Offer algorithmic way of deciding optimal SHAP dimensions to take
     - Do analysis over variance explained per SHAP dimensions
     - Add class method to predict on new text with the created classifier
+    - Create class method for evaluating SHAP values of all ngrams in inputted sentence
 """
 
 
@@ -194,7 +196,7 @@ class WordEmbeddings:
         logger.status_update(f"New shape of vectors is {self.vectors.shape}")
         return dims
 
-    def make_train_ngrams(self, train_text: str, n: int = 3):
+    def make_ngrams(self, train_text: str, n: int = 3):
         """
         Converts train_text to ngrams, flattens samples, and only keeps unique ngrams.
         """
@@ -205,7 +207,7 @@ class WordEmbeddings:
         ))  # Flatten list of lists
 
     @staticmethod
-    def get_ngrams(text: List[str], n: int = 3) -> List[str]:
+    def get_ngrams(text: List[str], n: int = 3, unigrams=False) -> List[str]:
         """
         Gets all lowercased ngrams up to n, not including unigrams (single words)
         """
@@ -216,6 +218,7 @@ class WordEmbeddings:
                 to_add = text[ix : ix + i + 1]
                 if not to_add in output:
                     output.append(to_add)
+        if unigrams: output += [[i] for i in text]
         return output
 
     def top_shap_dimensions(self, task: str, k: int) -> List[int]:
@@ -264,7 +267,7 @@ class WordEmbeddings:
 
     def top_ngrams_per_class(self, task: str,
                              k: int = 10, # How many top dimensions to take per class
-                             n: int = 3, # ngram size
+                             ngram_size: int = 3, # ngram size
                              display_count: int = 15 # Ngrams to display for each class
                              ) -> Dict[str, float]:
         """
@@ -280,10 +283,11 @@ class WordEmbeddings:
             self.model_inference(task)
             clf = self.task_data[task]['clf']
         if not self.task_data[task]['class_shaps'] or len(list(self.task_data[task]['class_shaps'].values())[0]) != k:
+            logger.yellow(f"Class shaps not cached for {task}, calculating now...")
             self.shap_by_class(task, k=k)
         # Not saving ngrams to task_data, since they're only used in a pretty unique case
-        ngrams = self.make_train_ngrams(
-            self.task_data[task]['train_text'], n=n
+        ngrams = self.make_ngrams(
+            self.task_data[task]['train_text'], n=ngram_size
         )
         out = {}
         logger.status_update("Calculating subspace scores for ngrams...")
@@ -310,6 +314,50 @@ class WordEmbeddings:
             out[class_label]["ngrams"] = sorted(subspace_scores, key=lambda x: x[1], reverse=True)
         return out
 
+
+    def analyze_sentence(self, task, text, ngram_size=3, k=50):
+        if task not in BINARY_CLASSIFICATION_TASKS:
+            raise ValueError("Can only analyze with binary classification tasks")
+        # Unpack from task_data
+        clf = self.task_data[task]['clf']
+        X_train = self.task_data[task]["X_train"]
+        if not clf:
+            logger.yellow(f"No classifier cached for {task}, training one now...")
+            self.model_inference(task)
+            clf = self.task_data[task]['clf']
+            X_train = self.task_data[task]["X_train"]
+        if not self.task_data[task]['class_shaps'] or len(list(self.task_data[task]['class_shaps'].values())[0]) != k:
+            logger.yellow(f"Class shaps not cached for {task}, calculating now...")
+            self.shap_by_class(task, k=k)
+        vector_dict = self.get_vector_dict()
+        text = [t.lower() for t in nltk.word_tokenize(text)]
+        v = np.reshape(self.get_sentence_vector(text, vector_dict), (1, -1))
+
+        class_pred = clf.predict(v)
+        logger.status_update(f"Predicted class: {class_pred[0]}")
+
+        explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
+        shap_values = explainer(v)
+        pos_class_dims = np.argsort(-shap_values.values, axis=1)[0][:k]
+        neg_class_dims = np.argsort(shap_values.values, axis=1)[0][:k]
+
+        if task in TASK_EXPLANATIONS:
+            print()
+            logger.yellow(TASK_EXPLANATIONS[task])
+            print()
+
+        ngrams = self.get_ngrams(text, n=ngram_size, unigrams=True)
+        out = {0: [], 1: []}
+        for gram in ngrams:
+            out[0].append((" ".join(gram), self.subspace_score(gram, neg_class_dims, vector_dict)))
+            out[1].append((" ".join(gram), self.subspace_score(gram, pos_class_dims, vector_dict)))
+        out[0] = sorted(out[0], key = lambda x: x[1], reverse = True)[:10]
+        out[1] = sorted(out[1], key = lambda x: x[1], reverse = True)[:10]
+        out['pred'] = class_pred[0]
+
+        return out
+
+
     @staticmethod
     def get_sentence_vector(sent: List[str], vector_dict: Dict[str, np.ndarray]) -> np.ndarray:
         """
@@ -321,7 +369,10 @@ class WordEmbeddings:
         v = np.mean(v, 0)
         return v
 
-    def subspace_score(self, text: Union[str, list], dims: List[int], vector_dict: Dict[str, np.ndarray]) -> float:
+    def subspace_score(self,
+                       text: Union[str, list],
+                       dims: List[int],
+                       vector_dict: Dict[str, np.ndarray]) -> float:
         """
         As defined in Jang et al.
         Lowercases all words and returns subspace score.
@@ -330,6 +381,7 @@ class WordEmbeddings:
             v = vector_dict[text]
         else:  # Input is a list of words, average over all vectors
             v = self.get_sentence_vector(text, vector_dict)
+            v = np.reshape(v, (-1,))
         if np.isinf(v).any():
             return 0.0
         slice = np.take(v, indices=dims)
@@ -344,7 +396,9 @@ class WordEmbeddings:
 
     def model_inference(self, task: str) -> float:
         """
-        Returns the classfier and X, text data used in SentEval task
+        Returns the classfier and X, text data used in SentEval task.
+        Can only run with PyTorch = False to use LinearExplainer, but then applied on PyTorch evaluation.
+        Uses prototyping config: https://github.com/facebookresearch/SentEval
         """
         # Set params for SentEval
         params_senteval = {"task_path": PATH_TO_DATA, "usepytorch": False, "kfold": 5}
@@ -375,7 +429,7 @@ class WordEmbeddings:
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
     ############################################################################
-    def get_vector_dict(self, original: bool=False) -> Dict[str, np.ndarray]:
+    def get_vector_dict(self, original: bool=False, scale=False) -> Dict[str, np.ndarray]:
         """
         Returns defaultdict of structure {word:vector}.
         Default is -inf for missing words.
@@ -527,6 +581,7 @@ class WordEmbeddings:
     ):
         """
         Runs SentEval classification tasks, and similarity tasks from Half-Size.
+        Sets senteval_config to prototyping as default: https://github.com/facebookresearch/SentEval
         """
         self.run_senteval(
             tasks,
