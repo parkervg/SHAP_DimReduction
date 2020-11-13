@@ -8,17 +8,7 @@ import matplotlib.pyplot as plt
 import re
 import numpy as np
 from scipy.interpolate import interp1d
-
-def atoi(text):
-    return int(text) if text.isdigit() else text
-
-def natural_keys(text):
-    '''
-    alist.sort(key=natural_keys) sorts in human order
-    http://nedbatchelder.com/blog/200712/human_sorting.html
-    (See Toothy's implementation in the comments)
-    '''
-    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
+from tools.analysis_tools import *
 
 def create_bar(summary_dir: str=None, json_paths: list=None, label_bars=True):
     """
@@ -80,38 +70,50 @@ def create_bar(summary_dir: str=None, json_paths: list=None, label_bars=True):
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0, fontsize=14)
     plt.show()
 
-def create_scatter(task, summary_dir: str=None, json_paths: list=None):
+def create_scatter(task, summary_dir: str=None, json_paths: list=None, output_file=None):
     if summary_dir and json_paths:
         raise ValueError("Only one of 'summary_dir', 'json_paths' can be specified.")
     if summary_dir: all_files = sorted(glob.glob("{}/*.json".format(summary_dir)), key=str.lower)
     elif json_paths: all_files = sorted(json_paths, key=str.lower)
 
-    algo_n = sorted([f for f in all_files if re.search(r'algo-n_.*?(?=\.json)', f)], key=natural_keys)
-    shap_algo = sorted([f for f in all_files if re.search(r'shap-algo_.*?(?=\.json)', f)], key=natural_keys)
-    shap_ppe = sorted([f for f in all_files if re.search(r'shap-ppe_.*?(?=\.json)', f)], key=natural_keys)
-    shap_ = sorted([f for f in all_files if re.search(r'shap_.*?(?=\.json)', f)], key=natural_keys)
+    algo = sorted([f for f in all_files if re.search(r'/algo_.*?(?=\.json)', f)], key=natural_keys)
+    shap_algo = sorted([f for f in all_files if re.search(r'/shap-algo_.*?(?=\.json)', f)], key=natural_keys)
+    #shap_ppe = sorted([f for f in all_files if re.search(r'/shap-ppe_.*?(?=\.json)', f)], key=natural_keys)
+    shap_ = sorted([f for f in all_files if re.search(r'/shap_.*?(?=\.json)', f)], key=natural_keys)
+    glove = sorted([f for f in all_files if re.search(r'/glove_[^3]*?(?=\.json)', f)], key=natural_keys)
+
+    all_groups = [algo,
+                  shap_algo,
+                 # shap_ppe,
+                  shap_,
+                  glove]
 
     data_dict = defaultdict(list)
     df = pd.DataFrame(columns=['vector_name', 'accuracy', 'dimensions'])
-    for group in [algo_n, shap_algo, shap_ppe, shap_]:
+    for group in all_groups:
         for filename in group:
             with open(filename) as f:
                 dims = int(re.search(r'\d\d(\d)?(?=\.json)', filename).group())
                 data = json.load(f)
                 vector_name = re.sub(r'_\d\d(\d)?$', '', os.path.splitext(os.path.basename(filename))[0])
-                df.loc[-1] = [vector_name.upper(), data['classification_scores'][task], dims]
-                df.index = df.index + 1
-                df.sort_index()
+                df = insert_row(df, [vector_name.upper(), data['classification_scores'][task], dims])
                 data_dict[re.sub(r'_\d\d(\d)?$', '', os.path.splitext(os.path.basename(filename))[0])].append(data['classification_scores'][task])
 
+    glove_200 = df.loc[(df["vector_name"] == "GLOVE") & (df["dimensions"] == 200), "accuracy"].iloc[0]
+    glove_100 = df.loc[(df["vector_name"] == "GLOVE") & (df["dimensions"] == 100), "accuracy"].iloc[0]
+    glove_150 = (glove_200 + glove_100) / 2 # Estimation
+    df = insert_row(df, ["GLOVE", glove_150, 150])
+    data_dict["glove"].insert(2, glove_150)
 
     x = [50, 100, 150, 200]
-    markers = ['^', 'o', 'D', '*']
+    markers = ['^', 'o', 'D', '*', 'x']
+    markers = markers[:len(all_groups)]
+
     fig, ax = plt.subplots()
     fig.set_size_inches(15, 10)
     sns.set_palette("husl")
     sns.despine(ax=ax, left=True, top=True, bottom=True, right=True)
-    plt.grid(axis='x', b=None)
+    plt.grid(axis='y', b=None)
     ax.set_xticks(ticks=x)
     sp = sns.scatterplot(data=df, x="dimensions", y="accuracy", hue="vector_name", style="vector_name", s=90)
     sp.set_xlabel("Dimensions", fontsize=12)
@@ -131,3 +133,16 @@ def create_scatter(task, summary_dir: str=None, json_paths: list=None):
                )
     plt.rcParams["font.family"] = "Times"
     fig.suptitle(f"{task} Scores", fontsize=20, fontweight="bold")
+    if output_file:
+        print("Saving visualization...")
+        plt.savefig(output_file, dpi=400, bbox_inches = "tight", pad_inches = .5)
+
+
+if __name__ == "__main__":
+    create_scatter("SUBJ", summary_dir="summary/SHAP/production", output_file="visualizations/subj_scatter.png")
+    create_scatter("MR", summary_dir="summary/SHAP/production", output_file="visualizations/mr_scatter.png")
+    create_scatter("CR", summary_dir="summary/SHAP/production", output_file="visualizations/cr_scatter.png")
+    create_scatter("MPQA", summary_dir="summary/SHAP/production", output_file="visualizations/mpqa_scatter.png")
+    create_scatter("SST5", summary_dir="summary/SHAP/production", output_file="visualizations/sst5_scatter.png")
+    create_scatter("TREC", summary_dir="summary/SHAP/production", output_file="visualizations/trec_scatter.png")
+    create_scatter("MRPC", summary_dir="summary/SHAP/production", output_file="visualizations/mrpc_scatter.png")
