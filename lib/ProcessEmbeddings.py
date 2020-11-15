@@ -229,13 +229,14 @@ class WordEmbeddings:
         if unigrams: output += [[i] for i in text]
         return output
 
-    def top_shap_dimensions(self, task: str, k: int) -> List[int]:
+    def top_shap_dimensions(self, task: str, k: int, clf=None, X_train=None) -> List[int]:
         """
         Averages over absolute shap values for each dimension, returning k top dimensions.
         """
-        # Unpacking from task_data
-        clf = self.task_data[task]['clf']
-        X_train = self.task_data[task]['X_train']
+        if None in [clf, X_train]:
+            # Unpacking from task_data
+            clf = self.task_data[task]['clf']
+            X_train = self.task_data[task]['X_train']
         explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
         shap_values = explainer(X_train)
         logger.log(f"Classifier has {len(clf.classes_)} classes")
@@ -247,6 +248,7 @@ class WordEmbeddings:
             vals = np.sum(np.abs(shap_values.values), axis=2).mean(0)
             sorted_dimensions = np.argsort(-vals, axis=0)
         return sorted_dimensions[:k]
+
 
     def shap_by_class(self, task: str, k: int = 10):
         """
