@@ -233,10 +233,11 @@ class WordEmbeddings:
         """
         Averages over absolute shap values for each dimension, returning k top dimensions.
         """
-        if None in [clf, X_train]:
+        if not clf:
             # Unpacking from task_data
             clf = self.task_data[task]['clf']
             X_train = self.task_data[task]['X_train']
+            task = None
         explainer = shap.LinearExplainer(clf, X_train, feature_dependence="independent")
         shap_values = explainer(X_train)
         logger.log(f"Classifier has {len(clf.classes_)} classes")
