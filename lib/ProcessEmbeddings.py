@@ -11,6 +11,7 @@ import math
 import copy
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn import preprocessing
 from typing import Iterable, Dict, Any, Tuple, List, Sequence, Generator, Callable, Union
 from tools.Blogger import Blogger
 import tensorflow.compat.v1 as tf
@@ -59,7 +60,7 @@ TODO:
 
 class WordEmbeddings:
     def __init__(
-        self, vector_file: str, is_word2vec: bool = False, normalize_on_load: bool = False
+        self, vector_file: str, word2vec: bool = False, normalize_on_load: bool = False
     ):
         self.vector_file = vector_file if vector_file else "./vectors/glove.6B.300d.txt"
         # On normalization:
@@ -73,7 +74,7 @@ class WordEmbeddings:
         self.class_shaps = {}
         self.summary = {}
         self.task_data = defaultdict(lambda: defaultdict(dict)) # Structure of {task: {'clf': clf, 'X_train': X_train, 'class_shaps': class_shaps, 'reduced_dims': dims}}
-        if is_word2vec:
+        if word2vec:
             self.load_word2vec_vectors()
         else:
             self.load_vectors()
@@ -84,7 +85,7 @@ class WordEmbeddings:
         """
         logger.status_update("Loading vectors at {}...".format(self.vector_file))
         model = KeyedVectors.load_word2vec_format(
-            "vectors/GoogleNews-vectors-negative300.bin", binary=True
+            self.vector_file, binary=True
         )
         self.vectors = model.vectors
         self.original_vectors = copy.deepcopy(self.vectors)
@@ -170,6 +171,13 @@ class WordEmbeddings:
         tf.reset_default_graph()
         self._del_all_flags(flags_file.FLAGS)  # So next run won't raise error
         logger.status_update(f"New shape of vectors is {self.vectors.shape}")
+
+    def scale(self):
+        """
+        Scales vectors between 0 and 1.
+        """
+        min_max_scaler = preprocessing.MinMaxScaler()
+        self.vectors = min_max_scaler.fit_transform(self.vectors)
 
     def shap_dim_reduction(self, task: str, k: int) -> List[int]:
         """
@@ -297,7 +305,7 @@ class WordEmbeddings:
             logger.yellow(TASK_EXPLANATIONS[task])
             print()
 
-        vector_dict = self.get_vector_dict(original=True)
+        vector_dict = self.get_vector_dict(original=True, inf_default=True)
         for class_label, shap_dims in self.task_data[task]['class_shaps'].items():
             if task == "TREC":
                 class_label = idx2tgt[class_label]
@@ -329,7 +337,7 @@ class WordEmbeddings:
         if not self.task_data[task]['class_shaps'] or len(list(self.task_data[task]['class_shaps'].values())[0]) != k:
             logger.yellow(f"Class shaps not cached for {task}, calculating now...")
             self.shap_by_class(task, k=k)
-        vector_dict = self.get_vector_dict()
+        vector_dict = self.get_vector_dict(original=True, inf_default=True)
         text = [t.lower() for t in nltk.word_tokenize(text)]
         v = np.reshape(self.get_sentence_vector(text, vector_dict), (1, -1))
 
@@ -426,16 +434,23 @@ class WordEmbeddings:
         self.vectors = copy.deepcopy(self.original_vectors)
         self.function_log = []
 
+    def avg_norm(self):
+        """
+        Returns average L2 norm of vector
+        """
+        return np.mean(np.linalg.norm(self.vectors, axis=1, ord=2))
+
     ############################################################################
     ####################### EVALUATION FUNCTIONS ###############################
     ############################################################################
-    def get_vector_dict(self, original: bool=False, scale=False) -> Dict[str, np.ndarray]:
+    def get_vector_dict(self, original: bool=False, inf_default=False) -> Dict[str, np.ndarray]:
         """
         Returns defaultdict of structure {word:vector}.
         Default is -inf for missing words.
         If original, returns unmodified vectors from original load.
         """
-        d = defaultdict(lambda: float('-inf'))
+        if inf_default: d = defaultdict(lambda: float('-inf'))
+        else: d = {}
         if original:
             for k, v in zip(self.ordered_vocab, self.original_vectors):
                 d[k] = v
