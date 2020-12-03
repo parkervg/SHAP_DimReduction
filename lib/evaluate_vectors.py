@@ -5,9 +5,9 @@ from lib.ProcessEmbeddings import WordEmbeddings
 from tools.Blogger import Blogger
 from collections import defaultdict
 logger = Blogger()
-BINARY_CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA"]
+BINARY_CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST2"]
 MULTICLASS_CLASSIFICATION_TASKS = ["SST5", "TREC"]
-CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST5", "TREC"]
+CLASSIFICATION_TASKS = ["MR", "CR", "SUBJ", "MPQA", "SST2", "SST5", "TREC"]
 SIMILARITY_TASKS = ['STS12', 'STS13', 'STS14']
 ALL_TASKS = BINARY_CLASSIFICATION_TASKS + MULTICLASS_CLASSIFICATION_TASKS + SIMILARITY_TASKS
 PRODUCTION_CONFIG = {"usepytorch": True, "kfold": 5, "nhid": 0, "optim": "rmsprop", "batch_size": 128, "tenacity": 3, "epoch_size": 2}
